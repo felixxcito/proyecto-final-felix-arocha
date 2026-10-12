@@ -1,0 +1,7 @@
+[
+  {
+    "semana": 12,
+    "titulo": "Herramientas para el Proyecto Final",
+    "descripcion": "ORMs (Prisma, SQLAlchemy, GORM, JPA), MongoDB con Mongoose, Docker Compose avanzado, variables de entorno y API Gateway con Nginx."
+  }
+]
