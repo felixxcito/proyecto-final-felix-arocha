@@ -295,6 +295,7 @@ location /api/clases/ {
             <li><strong>Frontend → Java</strong>: la profesora revisa y pulsa <em>Publicar</em> → <strong>Java → Node</strong> <code>/interno/asignar</code>.</li>
             <li><strong>Node → Python</strong>: <code>GET servicio-auth:8000/usuarios?rol=estudiante</code> para saber a quién asignar.</li>
             <li><strong>Node → Go</strong>: <code>POST servicio-notificaciones:8080/interno/notificar</code> por cada estudiante → campanita + correo.</li>
+            <li><strong>Java → LibreOffice</strong> (dentro del contenedor): si es PPTX lo convierte a PDF para el visor, sin bloquear la subida.</li>
             <li>Cuando un estudiante entrega, <strong>Node → Python</strong> busca a la profesora y <strong>Node → Go</strong> le avisa.</li>
             <li>Cuando la profesora crea un estudiante, <strong>Python → Node</strong> le asigna preguntas de las clases ya publicadas y <strong>Python → Go</strong> le da la bienvenida.</li>
           </ol>
@@ -322,6 +323,11 @@ location /api/clases/ {
             <div class="card"><h4>Explicar diapositivas</h4><p>Se extrae el texto de cada diapositiva (pdf-parse / lectura del XML del PPTX) y la IA redacta una explicación de 60–140 palabras por diapositiva.</p></div>
             <div class="card"><h4>5 preguntas distintas</h4><p>La IA genera un banco de 5 × N preguntas, se eliminan duplicados y se reparten. Las ya usadas se guardan para no repetirlas con estudiantes nuevos.</p></div>
             <div class="card"><h4>Modo demo</h4><p>Si no hay API key, el sistema sigue funcionando con explicaciones y preguntas por plantillas, para que siempre se pueda evaluar.</p></div>
+          </div>
+          <div class="qcp">
+            <div class="card"><h4>Visor de diapositivas</h4><p>Java convierte el PPTX a PDF con LibreOffice (en segundo plano) y el navegador dibuja cada página con pdf.js junto a la explicación.</p></div>
+            <div class="card"><h4>Pregúntale a la IA</h4><p>El chat envía la pregunta con el texto y la explicación de la diapositiva actual y las últimas dudas del alumno, para que la respuesta tenga contexto.</p></div>
+            <div class="card"><h4>Dudas para la profesora</h4><p>Cada pregunta se guarda en MongoDB (colección <code>consultas</code>). La profesora las ve por alumno y sabe qué diapositivas generan más dudas.</p></div>
           </div>
           <p>El proveedor se elige en el <code>.env</code> con <code>IA_PROVIDER</code>: <strong>NVIDIA NIM</strong> (key gratuita en build.nvidia.com, API compatible con OpenAI) o <strong>Google Gemini</strong>.
             La profesora siempre puede corregir lo que escribió la IA antes de publicar.</p>
