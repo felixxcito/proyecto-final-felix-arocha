@@ -187,4 +187,49 @@ Los temas iniciales se cargan desde `servicio-clases-java/src/main/resources/tem
 
 ## Capturas
 
-Las capturas del sistema funcionando están en `docs/`.
+### Frontend
+
+| Login | Clases de la profesora |
+|---|---|
+| ![Login](docs/capturas/01-login.png) | ![Clases de la profesora](docs/capturas/02-clases-profesora.png) |
+
+| Visor de diapositivas con la explicación de la IA | Chat "Pregúntale a la IA" |
+|---|---|
+| ![Visor de diapositivas](docs/capturas/03-visor.png) | ![Chat con la IA](docs/capturas/04-chat-ia.png) |
+
+| Materias y secciones | Pasar lista por sección |
+|---|---|
+| ![Materias y secciones](docs/capturas/05-secciones.png) | ![Pasar lista](docs/capturas/06-pasar-lista.png) |
+
+| Preguntas del estudiante | Dudas a la IA (vista de la profesora) |
+|---|---|
+| ![Preguntas del estudiante](docs/capturas/07-preguntas-estudiante.png) | ![Dudas a la IA](docs/capturas/08-dudas-ia.png) |
+
+| Notificaciones (campanita) | Correos en Mailpit |
+|---|---|
+| ![Notificaciones](docs/capturas/09-notificaciones.png) | ![Correos en Mailpit](docs/capturas/10-correos-mailpit.png) |
+
+### Servicios respondiendo
+
+Estado de los 4 microservicios consultado en vivo a través del gateway (`/api/<servicio>/health`):
+
+![Estado de los servicios](docs/capturas/11-servicios-en-vivo.png)
+
+Las mismas respuestas desde la terminal:
+
+```bash
+curl http://localhost/api/auth/health
+curl http://localhost/api/ia/health
+curl http://localhost/api/clases/health
+curl http://localhost/api/notificaciones/health
+```
+
+![Respuestas de /health en la terminal](docs/capturas/12-health-terminal.png)
+
+### Contenedores en ejecución
+
+```bash
+docker compose ps
+```
+
+![docker compose ps](docs/capturas/13-docker-compose-ps.png)
