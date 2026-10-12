@@ -165,3 +165,50 @@ a.clase-card:hover { border-color: var(--brand-2); transform: translateY(-2px); 
   .visor { height: 360px; }
   h1 { font-size: 1.45rem; }
 }
+
+/* ---------- visor de diapositivas */
+.visor-grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+.visor-slide { position: sticky; top: 76px; }
+.lienzo { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden;
+  min-height: 220px; display: grid; place-items: center; }
+.lienzo canvas { display: block; }
+.controles { display: flex; justify-content: space-between; align-items: center; margin-top: .7rem; }
+.visor-texto { max-height: calc(100vh - 110px); overflow: auto; }
+.visor-texto h2 { margin-top: .3rem; }
+.slide-texto { width: 100%; aspect-ratio: 16 / 9; padding: 6% 7%; background: linear-gradient(135deg, #1f3a8a, #2f55c9); color: #fff; overflow: hidden; }
+.slide-texto h3 { font-size: clamp(1rem, 2.4vw, 1.6rem); margin-bottom: .8rem; }
+.slide-texto ul { margin: 0; padding-left: 1.1rem; font-size: clamp(.75rem, 1.4vw, .95rem); opacity: .92; }
+.slide-texto .aviso { margin-top: 1rem; font-size: .78rem; opacity: .75; }
+
+/* ---------- chat con la IA */
+.chat-fab { position: fixed; right: 20px; bottom: 20px; z-index: 30; display: inline-flex; align-items: center; gap: .45rem;
+  background: var(--brand); color: #fff; border: none; border-radius: 999px; padding: .6rem 1rem; font: inherit; font-weight: 700;
+  font-size: .85rem; cursor: pointer; box-shadow: 0 8px 24px rgba(31, 58, 138, .35); transition: transform .15s, background .15s; }
+.chat-fab:hover { background: var(--brand-2); transform: translateY(-2px); }
+.chat-panel { position: fixed; right: 20px; bottom: 76px; z-index: 31; width: min(380px, calc(100vw - 32px)); height: min(520px, calc(100vh - 120px));
+  display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, .18); }
+.chat-panel header { display: flex; justify-content: space-between; align-items: flex-start; gap: .5rem; padding: .8rem 1rem; border-bottom: 1px solid var(--line); }
+.chat-mensajes { flex: 1; overflow-y: auto; padding: .9rem; display: flex; flex-direction: column; gap: .5rem; }
+.chat-vacio { font-size: .88rem; text-align: center; margin: auto 0; }
+.chat-panel form { display: flex; gap: .5rem; align-items: flex-end; padding: .7rem; border-top: 1px solid var(--line); }
+.chat-panel textarea { min-height: 42px; max-height: 120px; resize: none; font-size: .9rem; }
+.burbuja { max-width: 88%; padding: .55rem .8rem; border-radius: 12px; font-size: .88rem; white-space: pre-wrap; line-height: 1.5; }
+.burbuja.yo { align-self: flex-end; background: var(--brand); color: #fff; border-bottom-right-radius: 4px; }
+.burbuja.ia { align-self: flex-start; background: var(--surface-2); border-bottom-left-radius: 4px; }
+.duda { display: flex; flex-direction: column; gap: .4rem; padding: .8rem 0; border-bottom: 1px solid var(--line); }
+.duda:last-child { border-bottom: none; }
+.escribiendo { display: inline-flex; gap: 4px; }
+.escribiendo i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3); animation: rebote 1s infinite; }
+.escribiendo i:nth-child(2) { animation-delay: .15s; }
+.escribiendo i:nth-child(3) { animation-delay: .3s; }
+@keyframes rebote { 0%, 60%, 100% { opacity: .3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
+
+@media (max-width: 860px) {
+  .visor-grid { grid-template-columns: minmax(0, 1fr); }
+  .visor-slide { position: static; }
+  .visor-texto { max-height: none; }
+  .chat-fab span { display: none; }
+  .chat-fab { padding: .8rem; }
+  .chat-panel { right: 16px; bottom: 72px; }
+}

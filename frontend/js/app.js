@@ -136,20 +136,25 @@ async function vistaClase(id) {
     <div id="tabContenido"></div>`;
 
   const tabs = [];
-  if (contenido?.diapositivas?.length) tabs.push(['diapos', 'Diapositivas explicadas']);
-  if (tema.archivoNombre && tema.archivoTipo === 'pdf') tabs.push(['visor', 'Presentación']);
+  const hayDiapos = contenido?.diapositivas?.length;
+  if (hayDiapos) tabs.push(['ver', 'Ver clase']);
+  if (hayDiapos) tabs.push(['diapos', esProfe ? 'Editar explicaciones' : 'Todas las explicaciones']);
   if (!esProfe) tabs.push(['preguntas', 'Mis 5 preguntas']);
   if (esProfe && tema.estado === 'PUBLICADA') tabs.push(['respuestas', 'Respuestas de estudiantes']);
+  if (esProfe && tema.estado === 'PUBLICADA') tabs.push(['dudas', 'Dudas a la IA']);
 
   const tabsEl = document.getElementById('tabs');
   tabsEl.innerHTML = tabs.map(([k, t]) => `<button data-tab="${k}">${t}</button>`).join('');
-  const abrir = (k) => {
+  const abrir = (k, diapositiva) => {
+    clearTimeout(temporizador);
     tabsEl.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.tab === k));
     const destino = document.getElementById('tabContenido');
+    destino.onclick = null;
+    if (k === 'ver') Visor.pintar(destino, tema, contenido, diapositiva);
     if (k === 'diapos') pintarDiapositivas(destino, id, contenido);
-    if (k === 'visor') destino.innerHTML = `<iframe class="visor" src="/api/clases/temas/${id}/archivo?token=${encodeURIComponent(API.token)}"></iframe>`;
     if (k === 'preguntas') pintarMisPreguntas(destino, id);
     if (k === 'respuestas') pintarRespuestas(destino, id);
+    if (k === 'dudas') Visor.pintarDudas(destino, id, (n) => abrir('ver', n));
   };
   tabsEl.onclick = (e) => e.target.dataset.tab && abrir(e.target.dataset.tab);
   if (tabs.length) abrir(tabs[0][0]);
