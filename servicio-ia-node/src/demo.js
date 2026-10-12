@@ -22,7 +22,7 @@ const PLANTILLAS = [
   (t) => `¿Por que es importante "${t}" en un proyecto de software?`,
   (t) => `Da un ejemplo practico donde aplicarias "${t}".`,
   (t) => `¿Que problema resuelve "${t}"? Justifica tu respuesta.`,
-  (t) => `¿Que pasaria en el proyecto final si no se aplicara "${t}"?`,
+  (t) => `¿Que pasaria en un sistema real si no se tuviera en cuenta "${t}"?`,
   (t) => `Describe paso a paso como implementarias "${t}".`,
   (t) => `Menciona una ventaja y una desventaja de "${t}".`,
   (t) => `¿Como le explicarias "${t}" a un compañero que falto a clase?`,
@@ -35,7 +35,9 @@ const PLANTILLAS_PAR = [
 /** Devuelve hasta `cantidad` preguntas que no esten en `evitar`. */
 function preguntasDemo(diapositivas, cantidad, evitar = []) {
   const usadas = new Set(evitar.map(normalizar));
-  const temas = [...new Set(diapositivas.map((d) => d.titulo).filter((t) => t && t.length > 3 && !/^\d+$/.test(t)))];
+  // La portada (diapositiva 1) no suele ser un tema evaluable
+  const sinPortada = diapositivas.length > 2 ? diapositivas.filter((d) => d.n !== 1) : diapositivas;
+  const temas = [...new Set(sinPortada.map((d) => d.titulo).filter((t) => t && t.length > 3 && !/^\d+$/.test(t)))];
   if (!temas.length) temas.push('el tema de la clase');
 
   const candidatas = [];
