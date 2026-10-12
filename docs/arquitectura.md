@@ -45,3 +45,13 @@ La Clase 12 pide un sistema web con arquitectura de microservicios:
 - **Modo demo:** si no hay API key, el servicio de IA genera contenido con plantillas. Así el sistema siempre levanta y se puede evaluar.
 - `healthcheck` + `depends_on: condition: service_healthy` controlan el orden de arranque (las bases de datos primero, el gateway al final).
 - Más piezas que configurar: por eso todo se parametriza en un solo `.env` (solo se versiona `.env.example`).
+
+## Decisiones posteriores (durante el desarrollo)
+
+1. **Proveedor de IA configurable.** Conseguimos una key gratuita de NVIDIA, así que el servicio de IA pasó a soportar NVIDIA NIM (por defecto) y Google Gemini, elegidos con `IA_PROVIDER` en el `.env`.
+2. **Imágenes propias para Nginx y Postgres.** Montar archivos de la carpeta del proyecto (bind mounts) falló en macOS por permisos; copiar `nginx.conf`, el frontend e `init.sql` dentro de imágenes propias elimina ese riesgo.
+3. **Modelos que se retiran.** NVIDIA retiró `llama-3.3-70b-instruct`; pasamos a Gemma 4 y agregamos modelos de respaldo automáticos. Como NVIDIA corta respuestas que tardan más de ~100 s, usamos *streaming* y procesamos las diapositivas en lotes paralelos.
+4. **Visor de diapositivas.** El servicio de clases (dueño de los archivos) convierte PPTX a PDF con LibreOffice en segundo plano; el navegador dibuja cada página con pdf.js junto a la explicación de la IA.
+5. **Chat por diapositiva.** El servicio de IA responde dudas con el contexto de la diapositiva actual y guarda cada consulta en MongoDB para que la profesora vea qué no se entendió.
+6. **Clases privadas y preguntas configurables.** La profesora puede pasar lista y dar acceso solo a los presentes, y elegir cuántas preguntas recibe cada estudiante (1 a 20).
+7. **Materias y secciones.** Viven en el servicio de clases (`@OneToMany`, `@ManyToOne`, `@ElementCollection`). Java es la única fuente de verdad sobre quién puede ver cada clase: calcula la lista `permitidos` (sección + asistencia) y se la envía a Node, en vez de que Node consulte secciones por su cuenta.

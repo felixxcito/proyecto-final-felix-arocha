@@ -6,7 +6,7 @@
   <title>Cómo lo construimos — Aula Virtual LPR</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/estilos.css">
+  <link rel="stylesheet" href="/css/estilos.css?v=5">
   <style>
     .doc { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 2rem; align-items: start; }
     .toc { position: sticky; top: 80px; font-size: .88rem; }
@@ -185,6 +185,19 @@ Base.metadata.create_all(engine)   <span class="c"># crea la tabla al arrancar</
   List&lt;Clase&gt; findAllByOrderBySemanaAscIdAsc();   <span class="c">// Spring genera el SQL por el nombre del metodo</span>
 }</pre>
 
+          <div class="file">servicio-clases-java/.../Materia.java + Seccion.java — relaciones JPA</div>
+<pre class="code"><span class="k">@OneToMany</span>(mappedBy = <span class="k">"materia"</span>, cascade = CascadeType.ALL, orphanRemoval = <span class="k">true</span>)
+<span class="k">private</span> List&lt;Seccion&gt; secciones;          <span class="c">// una materia tiene muchas secciones</span>
+
+<span class="k">@ManyToOne</span> <span class="k">@JoinColumn</span>(name = <span class="k">"materia_id"</span>)
+<span class="k">private</span> Materia materia;                 <span class="c">// cada seccion pertenece a una materia</span>
+
+<span class="k">@ElementCollection</span>                       <span class="c">// tabla seccion_estudiante</span>
+<span class="k">private</span> Set&lt;Long&gt; estudiantes;           <span class="c">// IDs de usuarios del servicio de auth</span>
+
+<span class="k">@Query</span>(<span class="k">"select s from Seccion s where :id member of s.estudiantes"</span>)
+List&lt;Seccion&gt; deEstudiante(Long id);       <span class="c">// secciones de un estudiante</span></pre>
+
           <div class="file">servicio-notificaciones-go/main.go — GORM</div>
 <pre class="code"><span class="k">type</span> Notificacion <span class="k">struct</span> {
 	gorm.Model                 <span class="c">// ID, CreatedAt, UpdatedAt, DeletedAt</span>
@@ -297,7 +310,8 @@ location /api/clases/ {
             <li><strong>Node → Go</strong>: <code>POST servicio-notificaciones:8080/interno/notificar</code> por cada estudiante → campanita + correo.</li>
             <li><strong>Java → LibreOffice</strong> (dentro del contenedor): si es PPTX lo convierte a PDF para el visor, sin bloquear la subida.</li>
             <li>Cuando un estudiante entrega, <strong>Node → Python</strong> busca a la profesora y <strong>Node → Go</strong> le avisa.</li>
-            <li>Cuando la profesora crea un estudiante, <strong>Python → Node</strong> le asigna preguntas de las clases ya publicadas y <strong>Python → Go</strong> le da la bienvenida.</li>
+            <li>Cuando la profesora crea un estudiante, <strong>Python → Java</strong> lo inscribe en su sección, <strong>Java → Node</strong> le asigna las preguntas de las clases ya publicadas y <strong>Python → Go</strong> le da la bienvenida.</li>
+            <li>Cada vez que cambian las secciones o la lista de asistencia, <strong>Java</strong> calcula quién tiene acceso y se lo envía a <strong>Node</strong>.</li>
           </ol>
           <p>Además los 4 servicios validan el mismo <strong>JWT</strong> (firmado con <code>SECRET_KEY</code>) sin tener que consultar al servicio de auth en cada petición.</p>
         </section>
@@ -349,7 +363,7 @@ docker compose up --build
     </div>
   </main>
 
-  <script src="/js/api.js"></script>
+  <script src="/js/api.js?v=5"></script>
   <script>
     const servicios = [
       ['auth', 'Python'], ['ia', 'Node.js'], ['clases', 'Java'], ['notificaciones', 'Go'],

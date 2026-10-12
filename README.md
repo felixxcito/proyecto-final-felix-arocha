@@ -7,10 +7,11 @@ Plataforma web para la materia *Lenguajes de Programación* construida con **4 m
 ## ¿Qué hace el sistema?
 
 - **Login con roles** (profesora / estudiante). Las claves se guardan encriptadas con **bcrypt** y la sesión usa **JWT**.
-- La **profesora** crea las cuentas de sus estudiantes, organiza los temas por semana y **sube su presentación** (PDF o PPTX).
+- La **profesora** organiza su trabajo en **materias y secciones** (ej. *Lenguajes de Programación → Sección 01, Sección 02*), crea las cuentas de sus estudiantes inscribiéndolos en su sección, organiza los temas por semana y **sube su presentación** (PDF o PPTX).
+- Cada tema se publica a **todas las secciones de la materia o solo a las que ella elija**; cada estudiante solo ve las clases de su sección.
 - La **IA** lee cada diapositiva y escribe una **explicación** para los estudiantes. La profesora puede corregirla antes de publicar.
 - Al publicar, la IA genera **preguntas distintas para cada estudiante** (la profesora elige cuántas, de 1 a 20; por defecto 5). Ningún estudiante recibe una pregunta que tenga otro. La profesora puede corregir cualquier pregunta mientras el estudiante no haya entregado.
-- **Clases privadas con lista de asistencia:** la profesora marca la clase como "Solo asistentes", pasa lista en el salón y solo los estudiantes presentes reciben acceso, sus preguntas y una notificación. Puede ir agregando estudiantes mientras da la clase.
+- **Clases privadas con lista de asistencia:** la profesora marca la clase como "Solo asistentes" y **pasa lista por sección** (pestaña por sección, "Todos presentes" / "Ninguno"). Solo los presentes reciben acceso, sus preguntas y una notificación. Puede ir agregando estudiantes mientras da la clase.
 - **Visor de diapositivas:** el estudiante ve la diapositiva real junto a la explicación de la IA y avanza con ← →. Los PPTX se convierten a PDF en el servidor con LibreOffice.
 - **"Pregúntale a la IA":** un botón pequeño abajo a la derecha abre un chat que conoce la diapositiva que el estudiante está viendo.
 - La profesora puede **editar la explicación de la IA** directamente en el visor (botón *Editar*) o en la pestaña *Editar explicaciones*.
@@ -20,6 +21,8 @@ Plataforma web para la materia *Lenguajes de Programación* construida con **4 m
 - La página **"Cómo lo construimos"** (`http://localhost/como-lo-hicimos.html`) explica cada requisito de la Clase 12 con el código real y muestra el estado de los servicios en vivo.
 
 ## Arquitectura
+
+> Por qué elegimos esta arquitectura y cómo fue evolucionando: [docs/arquitectura.md](docs/arquitectura.md)
 
 ```
                          ┌──────────────────────────┐
@@ -56,7 +59,7 @@ Redes de Docker: `backend` (bases de datos, Mailpit y servicios) y `frontend` (g
 |---|---|---|---|---|
 | `servicio-auth` | Python 3.12 · FastAPI | 8001 → 8000 | PostgreSQL `auth_db` · SQLAlchemy | `POST /api/auth/login`, `GET /api/auth/me`, `GET/POST/PATCH/DELETE /api/auth/usuarios` |
 | `servicio-ia` | Node.js 20 · Express | 8002 → 3000 | MongoDB `aula_ia` · Mongoose | `GET/PUT /api/ia/clases/:id/contenido`, `GET/POST /api/ia/clases/:id/consultas`, `GET/PUT /api/ia/clases/:id/mis-preguntas`, `GET /api/ia/clases/:id/respuestas` |
-| `servicio-clases` | Java 21 · Spring Boot 3 | 8003 → 8080 | PostgreSQL `clases_db` · Spring Data JPA | `GET/POST/PUT/DELETE /api/clases/temas`, `POST /api/clases/temas/:id/presentacion`, `POST /api/clases/temas/:id/publicar`, `PUT /api/clases/temas/:id/configuracion`, `GET /api/clases/temas/:id/diapositivas.pdf` |
+| `servicio-clases` | Java 21 · Spring Boot 3 | 8003 → 8080 | PostgreSQL `clases_db` · Spring Data JPA | `GET/POST/PUT/DELETE /api/clases/materias`, `POST /api/clases/materias/:id/secciones`, `PUT /api/clases/secciones/:id/estudiantes`, `GET/POST/PUT/DELETE /api/clases/temas`, `POST /api/clases/temas/:id/presentacion`, `POST /api/clases/temas/:id/publicar`, `PUT /api/clases/temas/:id/configuracion`, `GET /api/clases/temas/:id/diapositivas.pdf` |
 | `servicio-notificaciones` | Go 1.25 · Gin | 8004 → 8080 | PostgreSQL `notif_db` · GORM | `GET /api/notificaciones/`, `PATCH /api/notificaciones/:id/leida`, `POST /api/notificaciones/leer-todas` |
 | `gateway` | Nginx | **80** → 80 | — | Frontend + `/api/*` |
 | `mailpit` | — | 8025 → 8025 | — | Bandeja de correos de prueba |
@@ -74,7 +77,9 @@ Las llamadas internas usan el nombre del servicio como host (`http://servicio-ia
 | Java → Node | `POST /interno/asignar`: al publicar, generar las 5 preguntas por estudiante |
 | Node → Python | `GET /usuarios?rol=estudiante`: saber a quién asignar preguntas o a qué profesora avisar |
 | Node → Go | `POST /interno/notificar`: campanita + correo a cada estudiante / a la profesora |
-| Python → Node | `POST /interno/estudiante-nuevo`: asignar preguntas de clases ya publicadas a un estudiante nuevo |
+| Python → Java | `POST /interno/inscribir`: inscribir al estudiante recién creado en su sección (Java → Node le asigna las preguntas de las clases ya publicadas) |
+| Python → Java | `DELETE /interno/estudiantes/:id`: sacar de sus secciones a un estudiante eliminado |
+| Java → Node | `POST /interno/asignar` también cada vez que cambian las secciones o la lista: Java calcula quién tiene acceso (`permitidos`) |
 | Python → Go | `POST /interno/notificar`: correo de bienvenida |
 
 Además los 4 servicios validan el mismo **JWT** firmado con `SECRET_KEY`.
@@ -150,8 +155,9 @@ Cambie `SECRET_KEY` (mínimo 32 caracteres), `INTERNAL_TOKEN`, `DB_PASS` y `ADMI
 
 ## Recorrido sugerido para evaluar
 
-1. Entrar como profesora → **Usuarios** → crear 2 estudiantes (botón *Generar* para la clave).
-2. **Clases** → *Semana 12* (o *+ Nuevo tema*) → arrastrar la presentación (PDF o PPTX).
+1. Entrar como profesora → **Secciones**: ya existe *Lenguajes de Programación · Sección 01*; crear una *Sección 02*.
+2. **Usuarios** → crear 2 estudiantes eligiendo su sección (botón *Generar* para la clave).
+3. **Clases** → *Semana 12* (o *+ Nuevo tema*) → arrastrar la presentación (PDF o PPTX).
 3. Esperar a que la IA termine (la página se actualiza sola) → revisar/corregir las explicaciones → elegir cuántas preguntas por estudiante → **Publicar**.
    - Opcional: marcar **🔒 Solo asistentes** y **Pasar lista** para que solo los presentes vean la clase.
 4. Ver en http://localhost:8025 los correos enviados.
