@@ -15,7 +15,7 @@
     section.bloque { margin-bottom: 2.6rem; scroll-margin-top: 80px; }
     section.bloque > h2 { display: flex; gap: .6rem; align-items: baseline; }
     section.bloque > h2 .n { font-family: var(--mono); color: var(--accent); font-size: .9rem; }
-    .qcp { display: grid; grid-template-columns: repeat(3, 1fr); gap: .8rem; margin: .8rem 0 1rem; }
+    .qcp { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: .8rem; margin: .8rem 0 1rem; }
     .qcp .card { padding: .9rem 1rem; }
     .qcp h4 { margin: 0 0 .3rem; font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: var(--brand); }
     .qcp p { margin: 0; font-size: .9rem; color: var(--ink-2); }
@@ -327,6 +327,7 @@ location /api/clases/ {
           <div class="qcp">
             <div class="card"><h4>Visor de diapositivas</h4><p>Java convierte el PPTX a PDF con LibreOffice (en segundo plano) y el navegador dibuja cada página con pdf.js junto a la explicación.</p></div>
             <div class="card"><h4>Pregúntale a la IA</h4><p>El chat envía la pregunta con el texto y la explicación de la diapositiva actual y las últimas dudas del alumno, para que la respuesta tenga contexto.</p></div>
+            <div class="card"><h4>Clases privadas</h4><p>La lista de asistencia se guarda en Postgres (tabla <code>clase_asistente</code>, con <code>@ElementCollection</code> de JPA). Java se la envía a Node, que solo asigna preguntas y da acceso a los presentes.</p></div>
             <div class="card"><h4>Dudas para la profesora</h4><p>Cada pregunta se guarda en MongoDB (colección <code>consultas</code>). La profesora las ve por alumno y sabe qué diapositivas generan más dudas.</p></div>
           </div>
           <p>El proveedor se elige en el <code>.env</code> con <code>IA_PROVIDER</code>: <strong>NVIDIA NIM</strong> (key gratuita en build.nvidia.com, API compatible con OpenAI) o <strong>Google Gemini</strong>.

@@ -9,9 +9,11 @@ Plataforma web para la materia *Lenguajes de Programación* construida con **4 m
 - **Login con roles** (profesora / estudiante). Las claves se guardan encriptadas con **bcrypt** y la sesión usa **JWT**.
 - La **profesora** crea las cuentas de sus estudiantes, organiza los temas por semana y **sube su presentación** (PDF o PPTX).
 - La **IA** lee cada diapositiva y escribe una **explicación** para los estudiantes. La profesora puede corregirla antes de publicar.
-- Al publicar, la IA genera **5 preguntas distintas para cada estudiante**: ningún estudiante recibe una pregunta que tenga otro.
+- Al publicar, la IA genera **preguntas distintas para cada estudiante** (la profesora elige cuántas, de 1 a 20; por defecto 5). Ningún estudiante recibe una pregunta que tenga otro. La profesora puede corregir cualquier pregunta mientras el estudiante no haya entregado.
+- **Clases privadas con lista de asistencia:** la profesora marca la clase como "Solo asistentes", pasa lista en el salón y solo los estudiantes presentes reciben acceso, sus preguntas y una notificación. Puede ir agregando estudiantes mientras da la clase.
 - **Visor de diapositivas:** el estudiante ve la diapositiva real junto a la explicación de la IA y avanza con ← →. Los PPTX se convierten a PDF en el servidor con LibreOffice.
 - **"Pregúntale a la IA":** un botón pequeño abajo a la derecha abre un chat que conoce la diapositiva que el estudiante está viendo.
+- La profesora puede **editar la explicación de la IA** directamente en el visor (botón *Editar*) o en la pestaña *Editar explicaciones*.
 - La profesora ve en **"Dudas a la IA"** qué preguntó cada alumno, en qué diapositiva y qué le respondió la IA, además de las diapositivas con más dudas.
 - Los estudiantes estudian la clase, **responden** y entregan. La profesora ve todas las respuestas.
 - **Notificaciones** con campanita en la web y **por correo** (clase nueva, preguntas asignadas, respuestas entregadas, bienvenida).
@@ -54,7 +56,7 @@ Redes de Docker: `backend` (bases de datos, Mailpit y servicios) y `frontend` (g
 |---|---|---|---|---|
 | `servicio-auth` | Python 3.12 · FastAPI | 8001 → 8000 | PostgreSQL `auth_db` · SQLAlchemy | `POST /api/auth/login`, `GET /api/auth/me`, `GET/POST/PATCH/DELETE /api/auth/usuarios` |
 | `servicio-ia` | Node.js 20 · Express | 8002 → 3000 | MongoDB `aula_ia` · Mongoose | `GET/PUT /api/ia/clases/:id/contenido`, `GET/POST /api/ia/clases/:id/consultas`, `GET/PUT /api/ia/clases/:id/mis-preguntas`, `GET /api/ia/clases/:id/respuestas` |
-| `servicio-clases` | Java 21 · Spring Boot 3 | 8003 → 8080 | PostgreSQL `clases_db` · Spring Data JPA | `GET/POST/PUT/DELETE /api/clases/temas`, `POST /api/clases/temas/:id/presentacion`, `POST /api/clases/temas/:id/publicar`, `GET /api/clases/temas/:id/diapositivas.pdf` |
+| `servicio-clases` | Java 21 · Spring Boot 3 | 8003 → 8080 | PostgreSQL `clases_db` · Spring Data JPA | `GET/POST/PUT/DELETE /api/clases/temas`, `POST /api/clases/temas/:id/presentacion`, `POST /api/clases/temas/:id/publicar`, `PUT /api/clases/temas/:id/configuracion`, `GET /api/clases/temas/:id/diapositivas.pdf` |
 | `servicio-notificaciones` | Go 1.25 · Gin | 8004 → 8080 | PostgreSQL `notif_db` · GORM | `GET /api/notificaciones/`, `PATCH /api/notificaciones/:id/leida`, `POST /api/notificaciones/leer-todas` |
 | `gateway` | Nginx | **80** → 80 | — | Frontend + `/api/*` |
 | `mailpit` | — | 8025 → 8025 | — | Bandeja de correos de prueba |
@@ -150,7 +152,8 @@ Cambie `SECRET_KEY` (mínimo 32 caracteres), `INTERNAL_TOKEN`, `DB_PASS` y `ADMI
 
 1. Entrar como profesora → **Usuarios** → crear 2 estudiantes (botón *Generar* para la clave).
 2. **Clases** → *Semana 12* (o *+ Nuevo tema*) → arrastrar la presentación (PDF o PPTX).
-3. Esperar a que la IA termine (la página se actualiza sola) → revisar/corregir las explicaciones → **Publicar**.
+3. Esperar a que la IA termine (la página se actualiza sola) → revisar/corregir las explicaciones → elegir cuántas preguntas por estudiante → **Publicar**.
+   - Opcional: marcar **🔒 Solo asistentes** y **Pasar lista** para que solo los presentes vean la clase.
 4. Ver en http://localhost:8025 los correos enviados.
 5. Cerrar sesión, entrar como estudiante → abrir la clase → **Ver clase**: recorrer las diapositivas y usar **Pregúntale a la IA**.
 6. **Mis 5 preguntas** → responder y entregar.
