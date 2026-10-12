@@ -1,4 +1,4 @@
-// Aplicacion principal (SPA con rutas por hash): #/clases, #/clase/:id, #/usuarios
+// Aplicacion principal (SPA con rutas por hash): #/clases, #/clase/:id, #/secciones, #/usuarios
 if (!API.token) location.href = '/';
 
 const yo = API.usuario;
@@ -21,7 +21,7 @@ const badgeEstado = (e) => `<span class="badge ${ESTADOS[e]?.[1] || ''}">${ESTAD
 // ------------------------------------------------------------------ router
 function pintarNav(ruta) {
   const links = [['#/clases', 'Clases']];
-  if (esProfe) links.push(['#/usuarios', 'Usuarios']);
+  if (esProfe) links.push(['#/secciones', 'Secciones'], ['#/usuarios', 'Usuarios']);
   links.push(['/como-lo-hicimos.html', 'Cómo lo construimos']);
   document.getElementById('nav').innerHTML = links
     .map(([href, txt]) => `<a href="${href}" class="${ruta.startsWith(href.slice(1, 6)) ? 'active' : ''}">${txt}</a>`).join('');
@@ -36,6 +36,7 @@ async function router() {
     const m = ruta.match(/^\/clase\/(\d+)(?:\/(\w+))?/);
     if (m) await vistaClase(Number(m[1]), m[2]);
     else if (ruta.startsWith('/usuarios') && esProfe) await vistaUsuarios();
+    else if (ruta.startsWith('/secciones') && esProfe) await Secciones.vista(vista);
     else await vistaClases();
   } catch (e) {
     vista.innerHTML = `<div class="card estado err">${esc(e.message)}</div>`;
@@ -46,30 +47,42 @@ window.addEventListener('hashchange', router);
 // ------------------------------------------------------------------ lista de clases
 async function vistaClases() {
   vista.innerHTML = '<div class="row"><div class="spinner"></div> Cargando clases...</div>';
-  const [temas, extra] = await Promise.all([
+  const [temas, extra, materias] = await Promise.all([
     API.get('clases/temas'),
     (esProfe ? API.get('ia/estadisticas') : API.get('ia/mis-asignaciones')).catch(() => []),
+    Secciones.materias(true),
   ]);
   const porClase = new Map(extra.map((x) => [x.claseId, x]));
+  // Un bloque por materia; el estudiante solo recibe las materias y temas de sus secciones
+  const bloques = materias.map((m) => ({ m, temas: temas.filter((t) => t.materiaId === m.id) }))
+    .filter((b) => esProfe || b.temas.length);
 
   vista.innerHTML = `
     <div class="page-head">
       <div>
-        <h1>${esProfe ? 'Tus clases' : 'Clases de la materia'}</h1>
+        <h1>${esProfe ? 'Tus clases' : 'Mis clases'}</h1>
         <p class="muted" style="margin:0">${esProfe
           ? 'Sube la presentación de cada tema: la IA la explica y genera preguntas distintas para cada estudiante.'
           : 'Abre una clase publicada para ver la explicación de cada diapositiva y responder tus preguntas.'}</p>
       </div>
       ${esProfe ? '<button class="btn primary" id="btnNuevo">+ Nuevo tema</button>' : ''}
     </div>
-    <div class="grid">${temas.map((t) => tarjetaClase(t, porClase.get(t.id))).join('') || '<p class="muted">Aún no hay temas.</p>'}</div>`;
+    ${bloques.map(({ m, temas: ts }) => `<section class="bloque-materia">
+      <div class="row" style="justify-content:space-between;align-items:baseline;margin-bottom:.7rem">
+        <h2 style="margin:0">${esc(m.nombre)} <span class="semana" style="font-family:var(--mono);color:var(--accent);font-size:.8rem">${esc(m.codigo || '')}</span></h2>
+        <span class="muted" style="font-size:.85rem">${esProfe
+          ? `${m.secciones.length} sección(es) · ${m.secciones.reduce((n, s) => n + s.estudiantes.length, 0)} estudiante(s)`
+          : esc(m.secciones.map((x) => x.nombre).join(', '))}</span>
+      </div>
+      <div class="grid">${ts.map((t) => tarjetaClase(t, porClase.get(t.id), m)).join('') || '<p class="muted">Aún no hay temas en esta materia.</p>'}</div>
+    </section>`).join('') || `<p class="muted">${esProfe ? 'Crea una materia en Secciones para empezar.' : 'Todavía no estás inscrito en ninguna sección. Pídele a tu profesora que te inscriba.'}</p>`}`;
 
   if (esProfe) document.getElementById('btnNuevo').onclick = () => modalTema();
 }
 
 const tengoAcceso = (t) => esProfe || (t.estado === 'PUBLICADA' && (!t.privada || (t.asistentes || []).includes(Number(yo.id))));
 
-function tarjetaClase(t, extra) {
+function tarjetaClase(t, extra, materia) {
   const visible = tengoAcceso(t);
   let pie = '';
   if (esProfe && extra) pie = `<span class="muted" style="font-size:.85rem">${extra.entregadas}/${extra.total} entregas</span>`;
@@ -82,31 +95,65 @@ function tarjetaClase(t, extra) {
       <div class="row" style="justify-content:space-between"><span class="semana">SEMANA ${esc(t.semana ?? '—')}</span>${etiqueta}</div>
       <h3>${esc(t.titulo)}</h3>
       <div class="desc">${esc(t.descripcion || '')}</div>
+      ${esProfe ? `<div class="muted" style="font-size:.8rem">👥 ${esc(textoSecciones(t, materia))}</div>` : ''}
       <div class="row" style="justify-content:space-between">${pie}${t.archivoNombre && esProfe ? `<span class="muted" style="font-size:.8rem">📎 ${esc(t.archivoNombre)}</span>` : ''}</div>
     </${tag}>`;
 }
 
-function modalTema(tema) {
+/** "Todas las secciones" o la lista de secciones elegidas para el tema. */
+function textoSecciones(t, materia) {
+  if (!materia) return 'Sin materia';
+  if (!t.secciones?.length) return `Todas las secciones (${materia.secciones.length})`;
+  return materia.secciones.filter((s) => t.secciones.includes(s.id)).map((s) => s.nombre).join(', ') || 'Ninguna sección';
+}
+
+async function modalTema(tema) {
+  const materias = await Secciones.materias(true);
+  if (!materias.length) {
+    toast('Primero crea una materia en Secciones', true);
+    location.hash = '#/secciones';
+    return;
+  }
   const m = document.createElement('div');
   m.className = 'modal';
   m.innerHTML = `<form class="card">
       <h2>${tema ? 'Editar tema' : 'Nuevo tema'}</h2>
+      <div class="field"><label>Materia</label>
+        <select name="materiaId" required>${materias.map((x) => `<option value="${x.id}" ${x.id === tema?.materiaId ? 'selected' : ''}>${esc(Secciones.etiqueta(x))}</option>`).join('')}</select></div>
       <div class="row">
         <div class="field" style="width:110px"><label>Semana</label><input name="semana" type="number" min="1" max="30" value="${esc(tema?.semana ?? '')}"></div>
         <div class="field grow"><label>Título</label><input name="titulo" required value="${esc(tema?.titulo || '')}"></div>
       </div>
       <div class="field"><label>Descripción</label><textarea name="descripcion">${esc(tema?.descripcion || '')}</textarea></div>
+      <div class="field"><label>Visible para</label><div id="checkSecciones" class="row"></div>
+        <div class="muted" style="font-size:.8rem;margin-top:.3rem">Si no marcas ninguna, la ven todas las secciones de la materia.</div></div>
       <div class="row" style="justify-content:flex-end">
         <button type="button" class="btn" data-cerrar>Cancelar</button>
         <button class="btn primary">Guardar</button>
       </div>
     </form>`;
   document.body.appendChild(m);
+  const select = m.querySelector('select[name=materiaId]');
+  const pintarSecciones = () => {
+    const materia = materias.find((x) => x.id === Number(select.value));
+    const elegidas = new Set(Number(select.value) === tema?.materiaId ? tema.secciones : []);
+    m.querySelector('#checkSecciones').innerHTML = materia.secciones.map((s) => `
+      <label class="chip-check"><input type="checkbox" value="${s.id}" ${elegidas.has(s.id) ? 'checked' : ''}> ${esc(s.nombre)}</label>`).join('')
+      || '<span class="muted">Esta materia no tiene secciones todavía.</span>';
+  };
+  select.onchange = pintarSecciones;
+  pintarSecciones();
   m.querySelector('[data-cerrar]').onclick = () => m.remove();
   m.querySelector('form').onsubmit = async (e) => {
     e.preventDefault();
     const f = new FormData(e.target);
-    const datos = { semana: f.get('semana') ? Number(f.get('semana')) : null, titulo: f.get('titulo'), descripcion: f.get('descripcion') };
+    const datos = {
+      semana: f.get('semana') ? Number(f.get('semana')) : null,
+      titulo: f.get('titulo'),
+      descripcion: f.get('descripcion'),
+      materiaId: Number(f.get('materiaId')),
+      secciones: [...m.querySelectorAll('#checkSecciones input:checked')].map((c) => Number(c.value)),
+    };
     try {
       if (tema) await API.put(`clases/temas/${tema.id}`, datos);
       else await API.post('clases/temas', datos);
@@ -128,6 +175,7 @@ async function vistaClase(id, tabInicial) {
     return;
   }
   const contenido = tema.archivoNombre ? await API.get(`ia/clases/${id}/contenido`).catch(() => null) : null;
+  const materia = (await Secciones.materias()).find((x) => x.id === tema.materiaId);
 
   vista.innerHTML = `
     <a class="btn small" href="#/clases" style="margin-bottom:1rem">← Todas las clases</a>
@@ -136,6 +184,7 @@ async function vistaClase(id, tabInicial) {
         <div class="semana" style="font-family:var(--mono);color:var(--accent);font-weight:600">SEMANA ${esc(tema.semana ?? '—')}</div>
         <h1>${esc(tema.titulo)}</h1>
         <p class="muted" style="margin:0">${esc(tema.descripcion || '')}</p>
+        ${materia ? `<p style="margin:.4rem 0 0;font-size:.88rem">📚 ${esc(Secciones.etiqueta(materia))}${esProfe ? ` · 👥 ${esc(textoSecciones(tema, materia))}` : ''}</p>` : ''}
       </div>
       ${esProfe ? `<div class="row">
         <button class="btn small" id="btnEditar">Editar</button>
@@ -234,44 +283,82 @@ async function guardarConfiguracion(tema, cambios, mensaje) {
 }
 
 async function modalLista(tema) {
-  const estudiantes = (await API.get('auth/usuarios?rol=estudiante')).filter((u) => u.activo);
+  const [estudiantes, materias] = await Promise.all([API.get('auth/usuarios?rol=estudiante'), Secciones.materias(true)]);
+  const porId = new Map(estudiantes.filter((u) => u.activo).map((u) => [u.id, u]));
+  const materia = materias.find((x) => x.id === tema.materiaId);
+  const secciones = (materia?.secciones || []).filter((s) => !tema.secciones?.length || tema.secciones.includes(s.id));
   const presentes = new Set(tema.asistentes || []);
+  let actual = secciones[0];
+  const alumnos = (s) => s.estudiantes.map((id) => porId.get(id)).filter(Boolean).sort((a, b) => a.nombre.localeCompare(b.nombre));
+
   const m = document.createElement('div');
   m.className = 'modal';
-  m.innerHTML = `<form class="card">
+  m.innerHTML = `<form class="card modal-lista">
       <h2>Pasar lista</h2>
-      <p class="muted">Marca a los estudiantes que están en el salón. ${tema.estado === 'PUBLICADA'
-        ? 'Al guardar, los nuevos reciben acceso, sus preguntas y una notificación.' : 'Recibirán acceso cuando publiques la clase.'}</p>
+      <p class="muted" style="margin-bottom:.6rem">${tema.estado === 'PUBLICADA'
+        ? 'Toca a cada estudiante presente. Al guardar, los nuevos reciben acceso, sus preguntas y una notificación.'
+        : 'Toca a cada estudiante presente. Recibirán acceso cuando publiques la clase.'}</p>
+      ${secciones.length ? `<div class="segmento" id="tabsSeccion" style="margin-bottom:.7rem;flex-wrap:wrap">${secciones.map((s) =>
+        `<button type="button" data-sec="${s.id}">${esc(s.nombre)}</button>`).join('')}</div>
       <div class="row" style="margin-bottom:.6rem">
-        <input id="filtroLista" class="grow" style="width:auto" placeholder="Buscar estudiante...">
-        <button type="button" class="btn small" id="marcarTodos">Marcar todos</button>
+        <input id="filtroLista" class="grow" style="width:auto" placeholder="Buscar en la sección...">
+        <button type="button" class="btn small" id="todosPresentes">Todos presentes</button>
+        <button type="button" class="btn small" id="ninguno">Ninguno</button>
       </div>
-      <div class="lista-asistencia">${estudiantes.map((u) => `
-        <label class="asistente"><input type="checkbox" value="${u.id}" ${presentes.has(u.id) ? 'checked' : ''}>
-          <span><strong>${esc(u.nombre)}</strong><br><span class="muted">${esc(u.email)}</span></span></label>`).join('')
-        || '<p class="muted">No hay estudiantes. Créalos en Usuarios.</p>'}</div>
+      <div class="lista-asistencia" id="listaAlumnos"></div>`
+      : '<div class="estado">Esta materia no tiene secciones con estudiantes. Créalas en <a href="#/secciones">Secciones</a>.</div>'}
       <div class="row" style="justify-content:space-between;margin-top:1rem">
         <span class="muted" id="cuentaLista"></span>
         <div class="row"><button type="button" class="btn" data-cerrar>Cancelar</button>
-        <button class="btn primary">Guardar asistencia</button></div>
+        <button class="btn primary" ${secciones.length ? '' : 'disabled'}>Guardar asistencia</button></div>
       </div>
     </form>`;
   document.body.appendChild(m);
-  const casillas = () => [...m.querySelectorAll('input[type=checkbox]')];
-  const contar = () => { m.querySelector('#cuentaLista').textContent = `${casillas().filter((c) => c.checked).length} de ${estudiantes.length} presentes`; };
-  contar();
-  m.onchange = contar;
-  m.querySelector('#filtroLista').oninput = (e) => {
-    const q = e.target.value.toLowerCase();
-    m.querySelectorAll('.asistente').forEach((l) => { l.hidden = !l.textContent.toLowerCase().includes(q); });
+
+  const contar = () => {
+    if (!actual) return;
+    const enSeccion = alumnos(actual).filter((u) => presentes.has(u.id)).length;
+    m.querySelector('#cuentaLista').textContent = `${enSeccion} de ${alumnos(actual).length} en ${actual.nombre} · ${presentes.size} presentes en total`;
   };
-  m.querySelector('#marcarTodos').onclick = () => { casillas().forEach((c) => { if (!c.closest('.asistente').hidden) c.checked = true; }); contar(); };
+  const pintar = () => {
+    m.querySelectorAll('#tabsSeccion button').forEach((b) => b.classList.toggle('activo', Number(b.dataset.sec) === actual.id));
+    const lista = alumnos(actual);
+    m.querySelector('#listaAlumnos').innerHTML = lista.map((u) => `
+      <label class="asistente"><input type="checkbox" value="${u.id}" ${presentes.has(u.id) ? 'checked' : ''}>
+        <span class="grow"><strong>${esc(u.nombre)}</strong><br><span class="muted">${esc(u.email)}</span></span>
+        <span class="marca">${presentes.has(u.id) ? 'Presente' : 'Ausente'}</span></label>`).join('')
+      || '<p class="muted" style="padding:1rem">No hay estudiantes inscritos en esta sección.</p>';
+    m.querySelector('#filtroLista').value = '';
+    contar();
+  };
+  if (actual) {
+    pintar();
+    m.querySelector('#tabsSeccion').onclick = (e) => {
+      const b = e.target.closest('[data-sec]');
+      if (b) { actual = secciones.find((s) => s.id === Number(b.dataset.sec)); pintar(); }
+    };
+    m.querySelector('#listaAlumnos').onchange = (e) => {
+      const id = Number(e.target.value);
+      if (e.target.checked) presentes.add(id); else presentes.delete(id);
+      e.target.closest('.asistente').querySelector('.marca').textContent = e.target.checked ? 'Presente' : 'Ausente';
+      contar();
+    };
+    m.querySelector('#filtroLista').oninput = (e) => {
+      const q = e.target.value.toLowerCase();
+      m.querySelectorAll('.asistente').forEach((l) => { l.hidden = !l.textContent.toLowerCase().includes(q); });
+    };
+    const marcar = (valor) => {
+      alumnos(actual).forEach((u) => (valor ? presentes.add(u.id) : presentes.delete(u.id)));
+      pintar();
+    };
+    m.querySelector('#todosPresentes').onclick = () => marcar(true);
+    m.querySelector('#ninguno').onclick = () => marcar(false);
+  }
   m.querySelector('[data-cerrar]').onclick = () => m.remove();
   m.querySelector('form').onsubmit = (e) => {
     e.preventDefault();
-    const asistentes = casillas().filter((c) => c.checked).map((c) => Number(c.value));
     m.remove();
-    guardarConfiguracion(tema, { privada: true, asistentes }, `Asistencia guardada: ${asistentes.length} presente(s)`);
+    guardarConfiguracion(tema, { privada: true, asistentes: [...presentes] }, `Asistencia guardada: ${presentes.size} presente(s)`);
   };
 }
 
@@ -440,7 +527,7 @@ async function pintarRespuestas(destino, id) {
 
 // ------------------------------------------------------------------ usuarios (profesora)
 async function vistaUsuarios() {
-  const usuarios = await API.get('auth/usuarios');
+  const [usuarios, materias] = await Promise.all([API.get('auth/usuarios'), Secciones.materias(true)]);
   vista.innerHTML = `
     <div class="page-head"><div><h1>Usuarios</h1>
       <p class="muted" style="margin:0">Crea las cuentas de tus estudiantes. Las claves se guardan encriptadas con bcrypt: nadie (ni tú) puede verlas después.</p></div></div>
@@ -453,16 +540,18 @@ async function vistaUsuarios() {
           <div class="row"><input name="password" class="grow" style="width:auto" required minlength="6">
           <button type="button" class="btn small" id="btnGenerar">Generar</button></div></div>
         <div class="field"><label>Rol</label><select name="rol"><option value="estudiante">Estudiante</option><option value="profesora">Profesora</option></select></div>
+        <div class="field" id="campoSeccion"><label>Sección</label><select name="seccion">${Secciones.opciones(materias)}</select></div>
         <button class="btn primary" style="width:100%;justify-content:center">Crear usuario</button>
-        <p class="muted" style="font-size:.8rem;margin:.6rem 0 0">Anota la clave y entrégasela al estudiante. Recibirá un correo de bienvenida y sus preguntas de las clases ya publicadas.</p>
+        <p class="muted" style="font-size:.8rem;margin:.6rem 0 0">Anota la clave y entrégasela al estudiante. Recibirá un correo de bienvenida y, si eliges su sección, las clases ya publicadas de esa sección.</p>
       </form>
       <div class="card tabla-wrap">
         <table class="tabla">
-          <thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estado</th><th></th></tr></thead>
+          <thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Sección</th><th>Estado</th><th></th></tr></thead>
           <tbody>${usuarios.map((u) => `<tr>
             <td><strong>${esc(u.nombre)}</strong></td>
             <td>${esc(u.email)}</td>
             <td>${u.rol === 'profesora' ? '<span class="badge info">Profesora</span>' : 'Estudiante'}</td>
+            <td style="font-size:.85rem">${u.rol === 'profesora' ? '' : (esc(Secciones.deEstudiante(materias, u.id).join(', ')) || '<span class="badge warn">Sin sección</span>')}</td>
             <td>${u.activo ? '<span class="badge ok">Activo</span>' : '<span class="badge">Inactivo</span>'}</td>
             <td><div class="row" style="justify-content:flex-end;flex-wrap:nowrap">${u.id === Number(yo.id) ? '<span class="muted">Tú</span>' : `
               <button class="btn small" data-accion="clave" data-id="${u.id}">Clave</button>
@@ -479,10 +568,13 @@ async function vistaUsuarios() {
     const c = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     form.password.value = Array.from(crypto.getRandomValues(new Uint32Array(10)), (n) => c[n % c.length]).join('');
   };
+  form.rol.onchange = () => { document.getElementById('campoSeccion').hidden = form.rol.value !== 'estudiante'; };
   form.onsubmit = async (e) => {
     e.preventDefault();
+    const { seccion, ...datos } = Object.fromEntries(new FormData(form));
+    datos.secciones = seccion && datos.rol === 'estudiante' ? [Number(seccion)] : [];
     try {
-      await API.post('auth/usuarios', Object.fromEntries(new FormData(form)));
+      await API.post('auth/usuarios', datos);
       toast('Usuario creado');
       vistaUsuarios();
     } catch (err) { toast(err.message, true); }
