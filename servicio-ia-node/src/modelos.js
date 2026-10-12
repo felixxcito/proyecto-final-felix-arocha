@@ -22,8 +22,10 @@ const contenidoSchema = new mongoose.Schema({
   resumen: String,
   diapositivas: [diapositivaSchema],
   publicado: { type: Boolean, default: false },
-  privada: { type: Boolean, default: false },      // solo los estudiantes de la lista de asistencia
-  asistentes: [Number],
+  privada: { type: Boolean, default: false },
+  // Estudiantes con acceso: los inscritos en las secciones de la clase (y en la lista, si es privada).
+  // Lo calcula el servicio de clases (Java) y lo envia en /interno/asignar.
+  permitidos: [Number],
   preguntasPorEstudiante: { type: Number, default: 5, min: 1, max: 20 },
   preguntasUsadas: [String],   // para que ninguna pregunta se repita entre estudiantes
 }, { timestamps: true });

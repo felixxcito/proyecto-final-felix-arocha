@@ -16,7 +16,6 @@
  * Internos (solo otros microservicios, header X-Internal-Token):
  *   POST /interno/procesar            <- Java manda la presentacion
  *   POST /interno/asignar             <- Java publica la clase
- *   POST /interno/estudiante-nuevo    <- Python creo un estudiante
  *   DELETE /interno/clases/:id        <- Java elimino el tema
  */
 require('dotenv').config();
@@ -33,10 +32,10 @@ const { usuariosPorRol, actualizarEstadoClase, notificar } = require('./servicio
 const app = express();
 app.use(express.json({ limit: '80mb' }));  // la presentacion llega en base64
 
-/** La profesora y los estudiantes con acceso (clase publicada y, si es privada, en la lista) pueden verla. */
+/** La profesora y los estudiantes permitidos (seccion + lista de asistencia, segun Java) pueden ver la clase. */
 const tieneAcceso = (c, usuario) => usuario.rol === 'profesora'
-  || (c.publicado && (!c.privada || (c.asistentes || []).includes(usuario.id)));
-const sinAcceso = (c) => (c.privada ? 'Clase privada: pidele acceso a tu profesora' : 'Clase no publicada');
+  || (c.publicado && (c.permitidos || []).includes(usuario.id));
+const sinAcceso = (c) => (c.privada ? 'Clase privada: pidele acceso a tu profesora' : 'No tienes acceso a esta clase');
 
 // ------------------------------------------------------------------ middlewares
 function conToken(req, res, next) {
@@ -157,11 +156,13 @@ function asignarPreguntas(claseId, estudiantes) {
     const porEstudiante = contenido.preguntasPorEstudiante || 5;
     const yaTienen = new Set((await Asignacion.find({ claseId }, 'estudianteId')).map((a) => a.estudianteId));
     const pendientes = estudiantes.filter((e) => !yaTienen.has(e.id) && tieneAcceso(contenido, { ...e, rol: 'estudiante' }));
-    const resumenEstado = (total) => (contenido.privada
-      ? `Publicada (privada). ${total} de ${contenido.asistentes.length} asistente(s) tienen sus preguntas.`
-      : `Publicada. ${total} estudiante(s) tienen sus preguntas unicas.`);
+    const resumenEstado = () => {
+      const conAcceso = (contenido.permitidos || []).length;
+      const listos = [...yaTienen, ...pendientes.map((e) => e.id)].filter((id) => contenido.permitidos.includes(id)).length;
+      return `Publicada${contenido.privada ? ' (privada)' : ''}. ${listos} de ${conAcceso} estudiante(s) con acceso tienen sus preguntas.`;
+    };
     if (!pendientes.length) {
-      await actualizarEstadoClase(claseId, 'PUBLICADA', resumenEstado(yaTienen.size));
+      await actualizarEstadoClase(claseId, 'PUBLICADA', resumenEstado());
       return;
     }
 
@@ -177,7 +178,7 @@ function asignarPreguntas(claseId, estudiantes) {
         `Ya puedes estudiar la clase "${contenido.titulo}" con la explicacion de cada diapositiva. Tienes ${suyas.length} preguntas para responder.`,
         `#/clase/${claseId}`);
     }
-    await actualizarEstadoClase(claseId, 'PUBLICADA', resumenEstado(await Asignacion.countDocuments({ claseId })));
+    await actualizarEstadoClase(claseId, 'PUBLICADA', resumenEstado());
     console.log(`Clase ${claseId}: preguntas asignadas a ${pendientes.length} estudiante(s)`);
   });
 }
@@ -195,24 +196,17 @@ app.post('/interno/procesar', soloInterno, h(async (req, res) => {
 }));
 
 app.post('/interno/asignar', soloInterno, h(async (req, res) => {
-  const { claseId, privada, asistentes, preguntasPorEstudiante } = req.body;
+  const { claseId, privada, permitidos, preguntasPorEstudiante } = req.body;
   await Contenido.updateOne({ claseId }, {
     publicado: true,
     privada: Boolean(privada),
-    asistentes: (asistentes || []).map(Number),
+    permitidos: (permitidos || []).map(Number),
     preguntasPorEstudiante: Math.min(20, Math.max(1, Number(preguntasPorEstudiante) || 5)),
   });
   res.status(202).json({ ok: true });
   usuariosPorRol('estudiante')
     .then((estudiantes) => asignarPreguntas(claseId, estudiantes))
     .catch((e) => console.error('Error asignando preguntas:', e.message));
-}));
-
-app.post('/interno/estudiante-nuevo', soloInterno, h(async (req, res) => {
-  const estudiante = req.body;
-  const publicadas = await Contenido.find({ publicado: true, privada: { $ne: true }, estado: 'listo' }, 'claseId');
-  for (const c of publicadas) await asignarPreguntas(c.claseId, [estudiante]);
-  res.json({ clasesAsignadas: publicadas.length });
 }));
 
 app.delete('/interno/clases/:id', soloInterno, h(async (req, res) => {
@@ -265,7 +259,7 @@ app.post('/clases/:id/regenerar', conToken, soloProfesora, h(async (req, res) =>
 }));
 
 app.get('/clases/:id/mis-preguntas', conToken, soloEstudiante, h(async (req, res) => {
-  const c = await Contenido.findOne({ claseId: Number(req.params.id) }, 'publicado privada asistentes');
+  const c = await Contenido.findOne({ claseId: Number(req.params.id) }, 'publicado privada permitidos');
   if (!c || !tieneAcceso(c, req.usuario)) return res.status(403).json({ detail: c ? sinAcceso(c) : 'Clase no disponible' });
   const a = await Asignacion.findOne({ claseId: Number(req.params.id), estudianteId: req.usuario.id });
   if (!a) return res.status(404).json({ detail: 'Tus preguntas se estan generando, vuelve en un momento' });
@@ -321,7 +315,7 @@ app.post('/clases/:id/consultas', conToken, h(async (req, res) => {
   const pregunta = String(req.body.pregunta || '').trim().slice(0, 1000);
   if (!pregunta) return res.status(400).json({ detail: 'Escribe tu pregunta' });
 
-  const c = await Contenido.findOne({ claseId }, 'titulo resumen diapositivas publicado privada asistentes');
+  const c = await Contenido.findOne({ claseId }, 'titulo resumen diapositivas publicado privada permitidos');
   if (!c) return res.status(404).json({ detail: 'Esta clase no tiene contenido' });
   if (!tieneAcceso(c, req.usuario)) return res.status(403).json({ detail: sinAcceso(c) });
   const diapositiva = c.diapositivas.find((d) => d.n === n);
