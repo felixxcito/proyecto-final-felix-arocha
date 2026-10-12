@@ -99,11 +99,13 @@ public class ClaseController {
     Clase c = buscar(id);
     if (!auth.esProfesora(u) && !"PUBLICADA".equals(c.getEstado()))
       throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Clase no publicada");
-    if (c.getPdfRuta() == null || !Files.exists(Path.of(c.getPdfRuta())))
+    // Las presentaciones PDF subidas antes de existir el visor no tienen pdfRuta: se usa el original
+    String ruta = c.getPdfRuta() != null ? c.getPdfRuta() : ("pdf".equals(c.getArchivoTipo()) ? c.getArchivoRuta() : null);
+    if (ruta == null || !Files.exists(Path.of(ruta)))
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, "La vista de diapositivas aun no esta lista");
     return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF)
         .header(HttpHeaders.CACHE_CONTROL, "private, max-age=300")
-        .body(new FileSystemResource(c.getPdfRuta()));
+        .body(new FileSystemResource(ruta));
   }
 
   // ----------------------------------------------------------------- CRUD profesora

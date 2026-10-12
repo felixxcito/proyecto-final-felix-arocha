@@ -116,7 +116,7 @@ const Visor = (() => {
       }
     }
 
-    if (tema.vistaEstado === 'LISTA') await iniciarPdf();
+    if (tema.vistaEstado === 'LISTA' || tema.archivoTipo === 'pdf') await iniciarPdf();
     if (!pdf) mostrarTexto(diapos[actual - 1], avisoVista());
 
     // Si el PPTX se esta convirtiendo, se consulta cada 4 s y se cambia a la vista real al terminar
