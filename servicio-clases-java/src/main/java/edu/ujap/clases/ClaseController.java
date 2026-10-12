@@ -50,6 +50,7 @@ public class ClaseController {
 
   record TemaIn(Integer semana, String titulo, String descripcion) {}
   record EstadoIn(String estado, String mensaje) {}
+  record ConfiguracionIn(Boolean privada, List<Long> asistentes, Integer preguntasPorEstudiante) {}
 
   @GetMapping("/health")
   public Map<String, String> health() {
@@ -78,8 +79,7 @@ public class ClaseController {
     Claims u = auth.usuario(h != null ? h : token);
     Clase c = buscar(id);
     if (c.getArchivoRuta() == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Sin presentacion");
-    if (!auth.esProfesora(u) && !"PUBLICADA".equals(c.getEstado()))
-      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Clase no publicada");
+    verificarAcceso(u, c);
     MediaType tipo = "pdf".equals(c.getArchivoTipo()) ? MediaType.APPLICATION_PDF
         : MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.presentationml.presentation");
     String disposicion = "pdf".equals(c.getArchivoTipo()) ? "inline" : "attachment";
@@ -97,8 +97,7 @@ public class ClaseController {
       @RequestParam(value = "token", required = false) String token) {
     Claims u = auth.usuario(h != null ? h : token);
     Clase c = buscar(id);
-    if (!auth.esProfesora(u) && !"PUBLICADA".equals(c.getEstado()))
-      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Clase no publicada");
+    verificarAcceso(u, c);
     // Las presentaciones PDF subidas antes de existir el visor no tienen pdfRuta: se usa el original
     String ruta = c.getPdfRuta() != null ? c.getPdfRuta() : ("pdf".equals(c.getArchivoTipo()) ? c.getArchivoRuta() : null);
     if (ruta == null || !Files.exists(Path.of(ruta)))
@@ -199,7 +198,7 @@ public class ClaseController {
     repo.save(c); // se guarda antes de llamar a Node, que actualizara el mensaje al terminar
     // Java -> Node: genera 5 preguntas distintas por estudiante y avisa (Node -> Go)
     try {
-      ia.post("/interno/asignar", Map.of("claseId", id, "titulo", c.getTitulo()));
+      enviarAsignacion(c);
     } catch (Exception e) {
       c.setEstado(estadoAnterior);
       c.setMensajeEstado("El servicio de IA no respondio: " + e.getMessage());
@@ -220,6 +219,49 @@ public class ClaseController {
     c.setEstado(yaPublicada ? "PUBLICADA" : in.estado());
     c.setMensajeEstado(in.mensaje());
     return repo.save(c);
+  }
+
+  /**
+   * Configuracion de la clase: privada + lista de asistencia + cantidad de preguntas.
+   * Si ya esta publicada, Java -> Node asigna preguntas a los estudiantes que acaban de recibir acceso.
+   */
+  @PutMapping("/temas/{id}/configuracion")
+  public Clase configurar(@PathVariable Long id, @RequestBody ConfiguracionIn in,
+      @RequestHeader(value = "Authorization", required = false) String h) {
+    auth.profesora(h);
+    Clase c = buscar(id);
+    if (in.privada() != null) c.setPrivada(in.privada());
+    if (in.asistentes() != null) c.setAsistentes(new HashSet<>(in.asistentes()));
+    if (in.preguntasPorEstudiante() != null) {
+      if (in.preguntasPorEstudiante() < 1 || in.preguntasPorEstudiante() > 20)
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Las preguntas por estudiante deben estar entre 1 y 20");
+      c.setPreguntasPorEstudiante(in.preguntasPorEstudiante());
+    }
+    repo.save(c);
+    if ("PUBLICADA".equals(c.getEstado())) {
+      try {
+        enviarAsignacion(c);
+      } catch (Exception e) {
+        throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Se guardo, pero el servicio de IA no respondio");
+      }
+    }
+    return c;
+  }
+
+  /** Java -> Node: genera las preguntas de los estudiantes con acceso que aun no tienen y les avisa (Node -> Go). */
+  private void enviarAsignacion(Clase c) {
+    ia.post("/interno/asignar", Map.of(
+        "claseId", c.getId(),
+        "titulo", c.getTitulo(),
+        "privada", c.isPrivada(),
+        "asistentes", c.getAsistentes(),
+        "preguntasPorEstudiante", c.getPreguntasPorEstudiante()));
+  }
+
+  private void verificarAcceso(Claims u, Clase c) {
+    if (auth.esProfesora(u)) return;
+    if (!c.visiblePara(Long.valueOf(u.getSubject())))
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, c.isPrivada() ? "Clase privada: pidele acceso a tu profesora" : "Clase no publicada");
   }
 
   // ----------------------------------------------------------------- utilidades

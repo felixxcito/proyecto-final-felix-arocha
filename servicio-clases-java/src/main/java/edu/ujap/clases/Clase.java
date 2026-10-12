@@ -33,6 +33,19 @@ public class Clase {
   @Column(columnDefinition = "TEXT")
   private String mensajeEstado;
 
+  /** Clase privada: solo los estudiantes que la profesora marco en la lista de asistencia */
+  @Column(nullable = false, columnDefinition = "boolean default false")
+  private boolean privada = false;
+
+  @ElementCollection(fetch = FetchType.EAGER)
+  @CollectionTable(name = "clase_asistente", joinColumns = @JoinColumn(name = "clase_id"))
+  @Column(name = "estudiante_id")
+  private java.util.Set<Long> asistentes = new java.util.HashSet<>();
+
+  /** Cuantas preguntas genera la IA para cada estudiante */
+  @Column(nullable = false, columnDefinition = "integer default 5")
+  private int preguntasPorEstudiante = 5;
+
   private Instant publicadaEn;
   private Instant actualizadaEn = Instant.now();
 
@@ -62,6 +75,18 @@ public class Clase {
   public void setEstado(String estado) { this.estado = estado; }
   public String getMensajeEstado() { return mensajeEstado; }
   public void setMensajeEstado(String mensajeEstado) { this.mensajeEstado = mensajeEstado; }
+  public boolean isPrivada() { return privada; }
+  public void setPrivada(boolean privada) { this.privada = privada; }
+  public java.util.Set<Long> getAsistentes() { return asistentes; }
+  public void setAsistentes(java.util.Set<Long> asistentes) { this.asistentes = asistentes; }
+  public int getPreguntasPorEstudiante() { return preguntasPorEstudiante; }
+  public void setPreguntasPorEstudiante(int n) { this.preguntasPorEstudiante = n; }
+
+  /** Un estudiante puede ver la clase si esta publicada y (no es privada o esta en la lista). */
+  public boolean visiblePara(Long estudianteId) {
+    return "PUBLICADA".equals(estado) && (!privada || asistentes.contains(estudianteId));
+  }
+
   public Instant getPublicadaEn() { return publicadaEn; }
   public void setPublicadaEn(Instant publicadaEn) { this.publicadaEn = publicadaEn; }
   public Instant getActualizadaEn() { return actualizadaEn; }
