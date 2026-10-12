@@ -1,0 +1,119 @@
+# Aula Virtual LPR — un solo comando:  docker compose up --build
+# Entrada unica: http://localhost  (Nginx como API Gateway)
+
+services:
+  # ------------------------------------------------------------ Bases de datos
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mongodb:
+    image: mongo:7
+    volumes:
+      - mongodata:/data/db
+    networks: [backend]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # SMTP de pruebas: los correos se ven en http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:v1.20
+    ports: ["8025:8025"]
+    networks: [backend]
+
+  # ------------------------------------------------------------ Microservicios
+  servicio-auth:                 # Python + FastAPI + SQLAlchemy -> Postgres
+    build: ./servicio-auth-python
+    env_file: .env
+    ports: ["8001:8000"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [backend, frontend]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      retries: 20
+
+  servicio-clases:               # Java + Spring Boot + JPA -> Postgres
+    build: ./servicio-clases-java
+    env_file: .env
+    ports: ["8003:8080"]
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [backend, frontend]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 5s
+      retries: 40
+
+  servicio-ia:                   # Node + Express + Mongoose -> MongoDB
+    build: ./servicio-ia-node
+    env_file: .env
+    ports: ["8002:3000"]
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks: [backend, frontend]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 5s
+      retries: 20
+
+  servicio-notificaciones:       # Go + Gin + GORM -> Postgres
+    build: ./servicio-notificaciones-go
+    env_file: .env
+    ports: ["8004:8080"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [backend, frontend]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 5s
+      retries: 20
+
+  # ------------------------------------------------------------ API Gateway + Frontend
+  gateway:
+    image: nginx:1.27-alpine
+    ports: ["80:80"]
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./frontend:/usr/share/nginx/html:ro
+    depends_on:
+      servicio-auth:
+        condition: service_healthy
+      servicio-clases:
+        condition: service_healthy
+      servicio-ia:
+        condition: service_healthy
+      servicio-notificaciones:
+        condition: service_healthy
+    networks: [frontend]
+
+volumes:
+  pgdata:
+  mongodata:
+  uploads:
+
+networks:
+  backend:
+  frontend:
