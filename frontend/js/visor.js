@@ -93,13 +93,40 @@ const Visor = (() => {
       $('vAnterior').disabled = actual === 1;
       $('vSiguiente').disabled = actual === total;
       $('vTexto').innerHTML = `
-        <div class="semana" style="font-family:var(--mono);color:var(--accent);font-weight:600;font-size:.8rem">DIAPOSITIVA ${actual}</div>
+        <div class="row" style="justify-content:space-between">
+          <div class="semana" style="font-family:var(--mono);color:var(--accent);font-weight:600;font-size:.8rem">DIAPOSITIVA ${actual}</div>
+          ${esProfe ? '<button class="btn small" id="vEditar">✏️ Editar</button>' : ''}
+        </div>
         <h2>${esc(d.titulo)}</h2>
         <div class="explicacion">${esc(d.explicacion)}</div>
         ${actual === 1 && contenido.resumen ? `<div class="resumen" style="margin-top:1rem"><strong>Resumen de la clase</strong><p style="margin:.4rem 0 0">${esc(contenido.resumen)}</p></div>` : ''}`;
+      if (esProfe) $('vEditar').onclick = () => editar(d);
       pintarChat();
       if (pdf) await mostrarPdf(actual);
       else mostrarTexto(d, avisoVista());
+    }
+
+    // La profesora corrige el titulo y la explicacion que escribio la IA, sin salir del visor
+    function editar(d) {
+      $('vTexto').innerHTML = `
+        <div class="semana" style="font-family:var(--mono);color:var(--accent);font-weight:600;font-size:.8rem">EDITANDO DIAPOSITIVA ${d.n}</div>
+        <div class="field" style="margin-top:.6rem"><label for="eTitulo">Título</label><input id="eTitulo" value="${esc(d.titulo)}"></div>
+        <div class="field"><label for="eTexto">Explicación para los estudiantes</label><textarea id="eTexto" rows="14">${esc(d.explicacion)}</textarea></div>
+        <div class="row" style="justify-content:flex-end">
+          <button class="btn small" id="eCancelar">Cancelar</button>
+          <button class="btn small primary" id="eGuardar">Guardar</button>
+        </div>`;
+      $('eTexto').focus();
+      $('eCancelar').onclick = () => ir(d.n);
+      $('eGuardar').onclick = async () => {
+        const cambio = { n: d.n, titulo: $('eTitulo').value.trim() || d.titulo, explicacion: $('eTexto').value };
+        try {
+          await API.put(`ia/clases/${tema.id}/contenido`, { diapositivas: [cambio] });
+          Object.assign(d, cambio);
+          toast('Explicación guardada');
+          ir(d.n);
+        } catch (err) { toast(err.message, true); }
+      };
     }
 
     const avisoVista = () => ({

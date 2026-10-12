@@ -33,8 +33,8 @@ async function router() {
   pintarNav(ruta);
   window.scrollTo(0, 0);
   try {
-    const m = ruta.match(/^\/clase\/(\d+)/);
-    if (m) await vistaClase(Number(m[1]));
+    const m = ruta.match(/^\/clase\/(\d+)(?:\/(\w+))?/);
+    if (m) await vistaClase(Number(m[1]), m[2]);
     else if (ruta.startsWith('/usuarios') && esProfe) await vistaUsuarios();
     else await vistaClases();
   } catch (e) {
@@ -57,7 +57,7 @@ async function vistaClases() {
       <div>
         <h1>${esProfe ? 'Tus clases' : 'Clases de la materia'}</h1>
         <p class="muted" style="margin:0">${esProfe
-          ? 'Sube la presentación de cada tema: la IA la explica y genera 5 preguntas por estudiante.'
+          ? 'Sube la presentación de cada tema: la IA la explica y genera preguntas distintas para cada estudiante.'
           : 'Abre una clase publicada para ver la explicación de cada diapositiva y responder tus preguntas.'}</p>
       </div>
       ${esProfe ? '<button class="btn primary" id="btnNuevo">+ Nuevo tema</button>' : ''}
@@ -67,12 +67,16 @@ async function vistaClases() {
   if (esProfe) document.getElementById('btnNuevo').onclick = () => modalTema();
 }
 
+const tengoAcceso = (t) => esProfe || (t.estado === 'PUBLICADA' && (!t.privada || (t.asistentes || []).includes(Number(yo.id))));
+
 function tarjetaClase(t, extra) {
-  const visible = esProfe || t.estado === 'PUBLICADA';
+  const visible = tengoAcceso(t);
   let pie = '';
   if (esProfe && extra) pie = `<span class="muted" style="font-size:.85rem">${extra.entregadas}/${extra.total} entregas</span>`;
   if (!esProfe && extra) pie = extra.entregada ? '<span class="badge ok">Respuestas entregadas</span>' : '<span class="badge warn">Preguntas pendientes</span>';
-  const etiqueta = esProfe ? badgeEstado(t.estado) : (visible ? '' : '<span class="badge">Próximamente</span>');
+  const privada = t.privada ? ' <span class="badge info">🔒 Privada</span>' : '';
+  const etiqueta = esProfe ? `<span>${badgeEstado(t.estado)}${privada}</span>`
+    : (visible ? privada : (t.privada && t.estado === 'PUBLICADA' ? '<span class="badge">🔒 Solo asistentes</span>' : '<span class="badge">Próximamente</span>'));
   const tag = visible ? 'a' : 'div';
   return `<${tag} class="card clase-card ${visible ? '' : 'bloqueada'}" ${visible ? `href="#/clase/${t.id}"` : ''}>
       <div class="row" style="justify-content:space-between"><span class="semana">SEMANA ${esc(t.semana ?? '—')}</span>${etiqueta}</div>
@@ -114,13 +118,19 @@ function modalTema(tema) {
 }
 
 // ------------------------------------------------------------------ detalle de clase
-async function vistaClase(id) {
+const enClase = (id) => new RegExp(`^#/clase/${id}(/|$)`).test(location.hash);
+async function vistaClase(id, tabInicial) {
   vista.innerHTML = '<div class="row"><div class="spinner"></div> Cargando clase...</div>';
   const tema = await API.get(`clases/temas/${id}`);
+  if (!tengoAcceso(tema)) {
+    vista.innerHTML = `<a class="btn small" href="#/clases">← Todas las clases</a>
+      <div class="card estado" style="margin-top:1rem">🔒 ${tema.privada ? 'Esta clase es privada: tu profesora te dará acceso al pasar la lista.' : 'Esta clase todavía no está publicada.'}</div>`;
+    return;
+  }
   const contenido = tema.archivoNombre ? await API.get(`ia/clases/${id}/contenido`).catch(() => null) : null;
 
   vista.innerHTML = `
-    <p><a href="#/clases">← Todas las clases</a></p>
+    <a class="btn small" href="#/clases" style="margin-bottom:1rem">← Todas las clases</a>
     <div class="page-head">
       <div>
         <div class="semana" style="font-family:var(--mono);color:var(--accent);font-weight:600">SEMANA ${esc(tema.semana ?? '—')}</div>
@@ -139,7 +149,7 @@ async function vistaClase(id) {
   const hayDiapos = contenido?.diapositivas?.length;
   if (hayDiapos) tabs.push(['ver', 'Ver clase']);
   if (hayDiapos) tabs.push(['diapos', esProfe ? 'Editar explicaciones' : 'Todas las explicaciones']);
-  if (!esProfe) tabs.push(['preguntas', 'Mis 5 preguntas']);
+  if (!esProfe) tabs.push(['preguntas', 'Mis preguntas']);
   if (esProfe && tema.estado === 'PUBLICADA') tabs.push(['respuestas', 'Respuestas de estudiantes']);
   if (esProfe && tema.estado === 'PUBLICADA') tabs.push(['dudas', 'Dudas a la IA']);
 
@@ -157,7 +167,7 @@ async function vistaClase(id) {
     if (k === 'dudas') Visor.pintarDudas(destino, id, (n) => abrir('ver', n));
   };
   tabsEl.onclick = (e) => e.target.dataset.tab && abrir(e.target.dataset.tab);
-  if (tabs.length) abrir(tabs[0][0]);
+  if (tabs.length) abrir(tabs.some(([k]) => k === tabInicial) ? tabInicial : tabs[0][0]);
 
   if (esProfe) {
     document.getElementById('btnEditar').onclick = () => modalTema(tema);
@@ -171,7 +181,7 @@ async function vistaClase(id) {
   }
   // Mientras la IA procesa, se refresca cada 4 segundos
   const trabajando = tema.estado === 'PROCESANDO' || (esProfe && (tema.mensajeEstado || '').includes('Generando'));
-  if (trabajando) temporizador = setTimeout(() => location.hash === `#/clase/${id}` && vistaClase(id), 4000);
+  if (trabajando) temporizador = setTimeout(() => enClase(id) && vistaClase(id), 4000);
 }
 
 function panelProfesora(tema, contenido) {
@@ -188,6 +198,25 @@ function panelProfesora(tema, contenido) {
       </div>
     </div>
     ${tema.mensajeEstado ? `<div class="estado ${claseEstado}" style="margin-bottom:.8rem">${spinner}<span>${esc(tema.mensajeEstado)}</span></div>` : ''}
+    <div class="config-clase">
+      <div class="field" style="margin:0">
+        <label for="cfgPreguntas">Preguntas por estudiante</label>
+        <div class="row" style="flex-wrap:nowrap">
+          <input id="cfgPreguntas" type="number" min="1" max="20" value="${tema.preguntasPorEstudiante || 5}" style="width:80px">
+          <button class="btn small" id="btnGuardarPreguntas">Guardar</button>
+        </div>
+      </div>
+      <div class="field" style="margin:0">
+        <label>Acceso</label>
+        <div class="segmento" role="radiogroup">
+          <button class="${tema.privada ? '' : 'activo'}" data-privada="false">Todos los estudiantes</button>
+          <button class="${tema.privada ? 'activo' : ''}" data-privada="true">🔒 Solo asistentes</button>
+        </div>
+      </div>
+      ${tema.privada ? `<div class="field" style="margin:0"><label>Lista de asistencia</label>
+        <button class="btn small primary" id="btnLista">✓ Pasar lista (${(tema.asistentes || []).length} presentes)</button></div>` : ''}
+    </div>
+    ${tema.estado === 'PUBLICADA' ? '<p class="muted" style="font-size:.8rem;margin:.2rem 0 .8rem">Los cambios en la cantidad de preguntas aplican a los estudiantes que reciban acceso desde ahora.</p>' : ''}
     <label class="dropzone" id="drop">
       <input type="file" id="archivo" accept=".pdf,.pptx" hidden>
       <strong>${tema.archivoNombre ? `📎 ${esc(tema.archivoNombre)} — click para reemplazar` : 'Arrastra aquí tu presentación o haz click'}</strong>
@@ -196,7 +225,74 @@ function panelProfesora(tema, contenido) {
   </div>`;
 }
 
+async function guardarConfiguracion(tema, cambios, mensaje) {
+  try {
+    await API.put(`clases/temas/${tema.id}/configuracion`, cambios);
+    toast(mensaje);
+    vistaClase(tema.id);
+  } catch (e) { toast(e.message, true); }
+}
+
+async function modalLista(tema) {
+  const estudiantes = (await API.get('auth/usuarios?rol=estudiante')).filter((u) => u.activo);
+  const presentes = new Set(tema.asistentes || []);
+  const m = document.createElement('div');
+  m.className = 'modal';
+  m.innerHTML = `<form class="card">
+      <h2>Pasar lista</h2>
+      <p class="muted">Marca a los estudiantes que están en el salón. ${tema.estado === 'PUBLICADA'
+        ? 'Al guardar, los nuevos reciben acceso, sus preguntas y una notificación.' : 'Recibirán acceso cuando publiques la clase.'}</p>
+      <div class="row" style="margin-bottom:.6rem">
+        <input id="filtroLista" class="grow" style="width:auto" placeholder="Buscar estudiante...">
+        <button type="button" class="btn small" id="marcarTodos">Marcar todos</button>
+      </div>
+      <div class="lista-asistencia">${estudiantes.map((u) => `
+        <label class="asistente"><input type="checkbox" value="${u.id}" ${presentes.has(u.id) ? 'checked' : ''}>
+          <span><strong>${esc(u.nombre)}</strong><br><span class="muted">${esc(u.email)}</span></span></label>`).join('')
+        || '<p class="muted">No hay estudiantes. Créalos en Usuarios.</p>'}</div>
+      <div class="row" style="justify-content:space-between;margin-top:1rem">
+        <span class="muted" id="cuentaLista"></span>
+        <div class="row"><button type="button" class="btn" data-cerrar>Cancelar</button>
+        <button class="btn primary">Guardar asistencia</button></div>
+      </div>
+    </form>`;
+  document.body.appendChild(m);
+  const casillas = () => [...m.querySelectorAll('input[type=checkbox]')];
+  const contar = () => { m.querySelector('#cuentaLista').textContent = `${casillas().filter((c) => c.checked).length} de ${estudiantes.length} presentes`; };
+  contar();
+  m.onchange = contar;
+  m.querySelector('#filtroLista').oninput = (e) => {
+    const q = e.target.value.toLowerCase();
+    m.querySelectorAll('.asistente').forEach((l) => { l.hidden = !l.textContent.toLowerCase().includes(q); });
+  };
+  m.querySelector('#marcarTodos').onclick = () => { casillas().forEach((c) => { if (!c.closest('.asistente').hidden) c.checked = true; }); contar(); };
+  m.querySelector('[data-cerrar]').onclick = () => m.remove();
+  m.querySelector('form').onsubmit = (e) => {
+    e.preventDefault();
+    const asistentes = casillas().filter((c) => c.checked).map((c) => Number(c.value));
+    m.remove();
+    guardarConfiguracion(tema, { privada: true, asistentes }, `Asistencia guardada: ${asistentes.length} presente(s)`);
+  };
+}
+
 function activarPanelProfesora(tema) {
+  document.getElementById('btnGuardarPreguntas').onclick = () => {
+    const n = Number(document.getElementById('cfgPreguntas').value);
+    if (!(n >= 1 && n <= 20)) return toast('Elige entre 1 y 20 preguntas', true);
+    guardarConfiguracion(tema, { preguntasPorEstudiante: n }, `Cada estudiante recibirá ${n} preguntas`);
+  };
+  document.querySelectorAll('[data-privada]').forEach((b) => {
+    b.onclick = () => {
+      const privada = b.dataset.privada === 'true';
+      if (privada === Boolean(tema.privada)) return;
+      if (privada && tema.estado === 'PUBLICADA'
+        && !confirm('Solo los estudiantes que marques en la lista podrán ver la clase. ¿Continuar?')) return;
+      guardarConfiguracion(tema, { privada }, privada ? 'Clase privada: ahora pasa la lista' : 'Clase abierta para todos los estudiantes');
+    };
+  });
+  const lista = document.getElementById('btnLista');
+  if (lista) lista.onclick = () => modalLista(tema).catch((e) => toast(e.message, true));
+
   const drop = document.getElementById('drop');
   const input = document.getElementById('archivo');
   const subir = async (archivo) => {
@@ -271,12 +367,12 @@ async function pintarMisPreguntas(destino, id) {
     a = await API.get(`ia/clases/${id}/mis-preguntas`);
   } catch (e) {
     destino.innerHTML = `<div class="estado"><div class="spinner"></div>${esc(e.message)}</div>`;
-    temporizador = setTimeout(() => location.hash === `#/clase/${id}` && pintarMisPreguntas(destino, id), 5000);
+    temporizador = setTimeout(() => enClase(id) && pintarMisPreguntas(destino, id), 5000);
     return;
   }
   const bloqueado = a.entregada ? 'disabled' : '';
   destino.innerHTML = `<div class="card">
-    <p class="muted">${a.entregada ? `Entregaste tus respuestas el ${fecha(a.entregadaEn)}.` : 'Estas 5 preguntas son solo tuyas: ningún compañero tiene las mismas.'}</p>
+    <p class="muted">${a.entregada ? `Entregaste tus respuestas el ${fecha(a.entregadaEn)}.` : `Estas ${a.preguntas.length} preguntas son solo tuyas: ningún compañero tiene las mismas.`}</p>
     ${a.preguntas.map((p, i) => `<div class="pregunta">
         <div class="q"><span>${i + 1}.</span>${esc(p.texto)}</div>
         <textarea data-id="${p._id}" ${bloqueado} placeholder="Escribe tu respuesta...">${esc(p.respuesta)}</textarea>
@@ -304,7 +400,7 @@ async function pintarRespuestas(destino, id) {
   const lista = await API.get(`ia/clases/${id}/respuestas`);
   if (!lista.length) {
     destino.innerHTML = '<div class="estado"><div class="spinner"></div>Generando preguntas para los estudiantes... (si no hay estudiantes, créalos en Usuarios)</div>';
-    temporizador = setTimeout(() => location.hash === `#/clase/${id}` && pintarRespuestas(destino, id), 5000);
+    temporizador = setTimeout(() => enClase(id) && pintarRespuestas(destino, id), 5000);
     return;
   }
   const entregadas = lista.filter((a) => a.entregada).length;
@@ -314,11 +410,32 @@ async function pintarRespuestas(destino, id) {
         <strong>${esc(a.estudianteNombre)}</strong>
         ${a.entregada ? `<span class="badge ok">Entregó · ${fecha(a.entregadaEn)}</span>` : '<span class="badge warn">Pendiente</span>'}
       </summary>
-      <div style="margin-top:1rem">${a.preguntas.map((p, i) => `<div class="pregunta">
-        <div class="q"><span>${i + 1}.</span>${esc(p.texto)}</div>
+      <div style="margin-top:1rem">${a.preguntas.map((p, i) => `<div class="pregunta" data-aid="${a._id}" data-pid="${p._id}">
+        <div class="q row" style="justify-content:space-between;flex-wrap:nowrap;align-items:flex-start">
+          <div><span>${i + 1}.</span><span class="texto-pregunta">${esc(p.texto)}</span></div>
+          ${a.entregada ? '' : '<button class="btn small ghost" data-editar-pregunta title="Corregir la pregunta">✏️</button>'}
+        </div>
         <div class="explicacion ${p.respuesta ? '' : 'muted'}">${esc(p.respuesta || 'Sin responder')}</div></div>`).join('')}
       </div>
     </details>`).join('')}`;
+
+  destino.onclick = async (e) => {
+    const b = e.target.closest('[data-editar-pregunta]');
+    if (!b) return;
+    const caja = b.closest('.pregunta');
+    const actual = caja.querySelector('.texto-pregunta').textContent;
+    caja.querySelector('.q').innerHTML = `<div class="grow"><textarea rows="2">${esc(actual)}</textarea>
+      <div class="row" style="justify-content:flex-end;margin-top:.4rem"><button class="btn small" data-cancelar>Cancelar</button>
+      <button class="btn small primary" data-guardar>Guardar pregunta</button></div></div>`;
+    caja.querySelector('[data-cancelar]').onclick = () => pintarRespuestas(destino, id);
+    caja.querySelector('[data-guardar]').onclick = async () => {
+      try {
+        await API.put(`ia/clases/${id}/asignaciones/${caja.dataset.aid}/preguntas/${caja.dataset.pid}`, { texto: caja.querySelector('textarea').value });
+        toast('Pregunta actualizada');
+        pintarRespuestas(destino, id);
+      } catch (err) { toast(err.message, true); }
+    };
+  };
 }
 
 // ------------------------------------------------------------------ usuarios (profesora)
@@ -394,9 +511,16 @@ async function vistaUsuarios() {
 
 // ------------------------------------------------------------------ notificaciones (campanita)
 const panel = document.getElementById('panelNotif');
+let ultimaNotificacion = null; // para mostrar un aviso cuando llega una nueva
 async function cargarNotificaciones() {
   try {
     const { noLeidas, notificaciones } = await API.get('notificaciones/');
+    const maxId = Math.max(0, ...(notificaciones || []).map((n) => n.ID));
+    if (ultimaNotificacion !== null && maxId > ultimaNotificacion) {
+      const nueva = notificaciones.find((n) => n.ID === maxId);
+      if (nueva && !nueva.leida) toast(`🔔 ${nueva.titulo}`);
+    }
+    ultimaNotificacion = maxId;
     const contador = document.getElementById('contador');
     contador.textContent = noLeidas > 9 ? '9+' : noLeidas;
     contador.classList.toggle('hidden', !noLeidas);
@@ -415,11 +539,12 @@ panel.onclick = async (e) => {
   if (!n) return;
   await API.patch(`notificaciones/${n.dataset.id}/leida`).catch(() => {});
   const hash = n.dataset.enlace.split('#')[1];
-  if (hash) location.hash = `#${hash}`;
+  if (hash && location.hash === `#${hash}`) router();
+  else if (hash) location.hash = `#${hash}`;
   panel.classList.add('hidden');
   cargarNotificaciones();
 };
 cargarNotificaciones();
-setInterval(cargarNotificaciones, 15000);
+setInterval(cargarNotificaciones, 10000);
 
 router();

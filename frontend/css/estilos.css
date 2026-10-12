@@ -212,3 +212,17 @@ a.clase-card:hover { border-color: var(--brand-2); transform: translateY(-2px); 
   .chat-fab { padding: .8rem; }
   .chat-panel { right: 16px; bottom: 72px; }
 }
+
+/* ---------- configuracion de la clase (preguntas, acceso, asistencia) */
+.config-clase { display: flex; flex-wrap: wrap; gap: 1rem 1.5rem; align-items: flex-end; padding: .9rem 1rem; margin-bottom: .8rem;
+  background: var(--surface-2); border-radius: 10px; }
+.segmento { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--surface); }
+.segmento button { border: none; background: none; font: inherit; font-size: .85rem; font-weight: 600; padding: .45em .9em; cursor: pointer; color: var(--ink-2); }
+.segmento button + button { border-left: 1px solid var(--line); }
+.segmento button.activo { background: var(--brand); color: #fff; }
+.lista-asistencia { max-height: 50vh; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; }
+.asistente { display: flex; gap: .7rem; align-items: center; padding: .6rem .8rem; border-bottom: 1px solid var(--line); cursor: pointer;
+  font-weight: 400; font-size: .9rem; color: var(--ink); margin: 0; }
+.asistente:last-child { border-bottom: none; }
+.asistente:hover { background: var(--surface-2); }
+.asistente input { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--brand); }
