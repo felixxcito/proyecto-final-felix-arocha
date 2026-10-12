@@ -5,9 +5,10 @@
  *   GET  /clases/:id/contenido        -> explicacion de cada diapositiva
  *   PUT  /clases/:id/contenido        -> la profesora corrige lo que genero la IA
  *   POST /clases/:id/regenerar        -> volver a pedir las explicaciones a la IA
- *   GET  /clases/:id/mis-preguntas    -> las 5 preguntas del estudiante
+ *   GET  /clases/:id/mis-preguntas    -> las preguntas del estudiante
  *   PUT  /clases/:id/mis-preguntas    -> guardar / entregar respuestas
  *   GET  /clases/:id/respuestas       -> (profesora) respuestas de todos
+ *   PUT  /clases/:id/asignaciones/:aid/preguntas/:pid -> (profesora) corregir una pregunta
  *   POST /clases/:id/consultas        -> preguntarle a la IA sobre una diapositiva
  *   GET  /clases/:id/consultas        -> estudiante: sus dudas / profesora: las de todos
  *   GET  /mis-asignaciones            -> (estudiante) estado de sus preguntas
@@ -32,7 +33,10 @@ const { usuariosPorRol, actualizarEstadoClase, notificar } = require('./servicio
 const app = express();
 app.use(express.json({ limit: '80mb' }));  // la presentacion llega en base64
 
-const PREGUNTAS_POR_ESTUDIANTE = 5;
+/** La profesora y los estudiantes con acceso (clase publicada y, si es privada, en la lista) pueden verla. */
+const tieneAcceso = (c, usuario) => usuario.rol === 'profesora'
+  || (c.publicado && (!c.privada || (c.asistentes || []).includes(usuario.id)));
+const sinAcceso = (c) => (c.privada ? 'Clase privada: pidele acceso a tu profesora' : 'Clase no publicada');
 
 // ------------------------------------------------------------------ middlewares
 function conToken(req, res, next) {
@@ -145,33 +149,35 @@ function enCola(claseId, fn) {
   return siguiente;
 }
 
-/** Asigna 5 preguntas unicas a cada estudiante que todavia no tenga en esta clase. */
+/** Asigna N preguntas unicas a cada estudiante con acceso que todavia no tenga en esta clase. */
 function asignarPreguntas(claseId, estudiantes) {
   return enCola(claseId, async () => {
     const contenido = await Contenido.findOne({ claseId, estado: 'listo' });
     if (!contenido) return;
+    const porEstudiante = contenido.preguntasPorEstudiante || 5;
     const yaTienen = new Set((await Asignacion.find({ claseId }, 'estudianteId')).map((a) => a.estudianteId));
-    const pendientes = estudiantes.filter((e) => !yaTienen.has(e.id));
+    const pendientes = estudiantes.filter((e) => !yaTienen.has(e.id) && tieneAcceso(contenido, { ...e, rol: 'estudiante' }));
+    const resumenEstado = (total) => (contenido.privada
+      ? `Publicada (privada). ${total} de ${contenido.asistentes.length} asistente(s) tienen sus preguntas.`
+      : `Publicada. ${total} estudiante(s) tienen sus preguntas unicas.`);
     if (!pendientes.length) {
-      await actualizarEstadoClase(claseId, 'PUBLICADA', `Publicada. ${yaTienen.size} estudiante(s) tienen sus preguntas; no hay estudiantes nuevos.`);
+      await actualizarEstadoClase(claseId, 'PUBLICADA', resumenEstado(yaTienen.size));
       return;
     }
 
-    const preguntas = barajar(await preguntasNuevas(contenido, pendientes.length * PREGUNTAS_POR_ESTUDIANTE));
+    const preguntas = barajar(await preguntasNuevas(contenido, pendientes.length * porEstudiante));
     for (const [i, est] of pendientes.entries()) {
-      const suyas = preguntas.slice(i * PREGUNTAS_POR_ESTUDIANTE, (i + 1) * PREGUNTAS_POR_ESTUDIANTE);
+      const suyas = preguntas.slice(i * porEstudiante, (i + 1) * porEstudiante);
       await Asignacion.create({
         claseId, estudianteId: est.id, estudianteNombre: est.nombre, estudianteEmail: est.email,
         preguntas: suyas.map((texto) => ({ texto })),
       });
       await Contenido.updateOne({ claseId }, { $push: { preguntasUsadas: { $each: suyas } } });
-      notificar(est, `Nueva clase: ${contenido.titulo}`,
-        `Ya puedes estudiar la clase "${contenido.titulo}" con la explicacion de cada diapositiva. Tienes ${PREGUNTAS_POR_ESTUDIANTE} preguntas para responder.`,
+      notificar(est, contenido.privada ? `Tienes acceso a la clase: ${contenido.titulo}` : `Nueva clase: ${contenido.titulo}`,
+        `Ya puedes estudiar la clase "${contenido.titulo}" con la explicacion de cada diapositiva. Tienes ${suyas.length} preguntas para responder.`,
         `#/clase/${claseId}`);
     }
-    const total = await Asignacion.countDocuments({ claseId });
-    await actualizarEstadoClase(claseId, 'PUBLICADA',
-      `Publicada. ${total} estudiante(s) tienen sus ${PREGUNTAS_POR_ESTUDIANTE} preguntas unicas.`);
+    await actualizarEstadoClase(claseId, 'PUBLICADA', resumenEstado(await Asignacion.countDocuments({ claseId })));
     console.log(`Clase ${claseId}: preguntas asignadas a ${pendientes.length} estudiante(s)`);
   });
 }
@@ -189,8 +195,13 @@ app.post('/interno/procesar', soloInterno, h(async (req, res) => {
 }));
 
 app.post('/interno/asignar', soloInterno, h(async (req, res) => {
-  const { claseId } = req.body;
-  await Contenido.updateOne({ claseId }, { publicado: true });
+  const { claseId, privada, asistentes, preguntasPorEstudiante } = req.body;
+  await Contenido.updateOne({ claseId }, {
+    publicado: true,
+    privada: Boolean(privada),
+    asistentes: (asistentes || []).map(Number),
+    preguntasPorEstudiante: Math.min(20, Math.max(1, Number(preguntasPorEstudiante) || 5)),
+  });
   res.status(202).json({ ok: true });
   usuariosPorRol('estudiante')
     .then((estudiantes) => asignarPreguntas(claseId, estudiantes))
@@ -199,7 +210,7 @@ app.post('/interno/asignar', soloInterno, h(async (req, res) => {
 
 app.post('/interno/estudiante-nuevo', soloInterno, h(async (req, res) => {
   const estudiante = req.body;
-  const publicadas = await Contenido.find({ publicado: true, estado: 'listo' }, 'claseId');
+  const publicadas = await Contenido.find({ publicado: true, privada: { $ne: true }, estado: 'listo' }, 'claseId');
   for (const c of publicadas) await asignarPreguntas(c.claseId, [estudiante]);
   res.json({ clasesAsignadas: publicadas.length });
 }));
@@ -222,7 +233,7 @@ app.get('/health', (req, res) => res.json({
 app.get('/clases/:id/contenido', conToken, h(async (req, res) => {
   const c = await Contenido.findOne({ claseId: Number(req.params.id) }, '-preguntasUsadas');
   if (!c) return res.status(404).json({ detail: 'Esta clase aun no tiene presentacion' });
-  if (req.usuario.rol !== 'profesora' && !c.publicado) return res.status(403).json({ detail: 'Clase no publicada' });
+  if (!tieneAcceso(c, req.usuario)) return res.status(403).json({ detail: sinAcceso(c) });
   res.json(c);
 }));
 
@@ -254,6 +265,8 @@ app.post('/clases/:id/regenerar', conToken, soloProfesora, h(async (req, res) =>
 }));
 
 app.get('/clases/:id/mis-preguntas', conToken, soloEstudiante, h(async (req, res) => {
+  const c = await Contenido.findOne({ claseId: Number(req.params.id) }, 'publicado privada asistentes');
+  if (!c || !tieneAcceso(c, req.usuario)) return res.status(403).json({ detail: c ? sinAcceso(c) : 'Clase no disponible' });
   const a = await Asignacion.findOne({ claseId: Number(req.params.id), estudianteId: req.usuario.id });
   if (!a) return res.status(404).json({ detail: 'Tus preguntas se estan generando, vuelve en un momento' });
   res.json(a);
@@ -269,7 +282,7 @@ app.put('/clases/:id/mis-preguntas', conToken, soloEstudiante, h(async (req, res
     if (p) p.respuesta = String(r.respuesta || '').slice(0, 5000);
   }
   if (req.body.entregar) {
-    if (a.preguntas.some((p) => !p.respuesta.trim())) return res.status(400).json({ detail: 'Responde las 5 preguntas antes de entregar' });
+    if (a.preguntas.some((p) => !p.respuesta.trim())) return res.status(400).json({ detail: `Responde las ${a.preguntas.length} preguntas antes de entregar` });
     a.entregada = true;
     a.entregadaEn = new Date();
   }
@@ -278,7 +291,7 @@ app.put('/clases/:id/mis-preguntas', conToken, soloEstudiante, h(async (req, res
     const c = await Contenido.findOne({ claseId }, 'titulo');
     usuariosPorRol('profesora').then((profes) => profes.forEach((p) => notificar(p,
       `${req.usuario.nombre} entrego sus respuestas`,
-      `${req.usuario.nombre} respondio sus 5 preguntas de la clase "${c?.titulo}".`, `#/clase/${claseId}`)))
+      `${req.usuario.nombre} respondio sus ${a.preguntas.length} preguntas de la clase "${c?.titulo}".`, `#/clase/${claseId}/respuestas`)))
       .catch((e) => console.error(e.message));
   }
   res.json(a);
@@ -288,6 +301,19 @@ app.get('/clases/:id/respuestas', conToken, soloProfesora, h(async (req, res) =>
   res.json(await Asignacion.find({ claseId: Number(req.params.id) }).sort('estudianteNombre'));
 }));
 
+/** La profesora corrige una pregunta generada por la IA (solo si el estudiante aun no entrega). */
+app.put('/clases/:id/asignaciones/:aid/preguntas/:pid', conToken, soloProfesora, h(async (req, res) => {
+  const texto = String(req.body.texto || '').trim();
+  if (texto.length < 5) return res.status(400).json({ detail: 'La pregunta es muy corta' });
+  const a = await Asignacion.findOne({ _id: req.params.aid, claseId: Number(req.params.id) });
+  const p = a?.preguntas.id(req.params.pid);
+  if (!p) return res.status(404).json({ detail: 'Pregunta no encontrada' });
+  if (a.entregada) return res.status(409).json({ detail: 'El estudiante ya entrego; no se puede cambiar la pregunta' });
+  p.texto = texto;
+  await a.save();
+  res.json(a);
+}));
+
 // ------------------------------------------------------------------ dudas a la IA (visor)
 app.post('/clases/:id/consultas', conToken, h(async (req, res) => {
   const claseId = Number(req.params.id);
@@ -295,9 +321,9 @@ app.post('/clases/:id/consultas', conToken, h(async (req, res) => {
   const pregunta = String(req.body.pregunta || '').trim().slice(0, 1000);
   if (!pregunta) return res.status(400).json({ detail: 'Escribe tu pregunta' });
 
-  const c = await Contenido.findOne({ claseId }, 'titulo resumen diapositivas publicado');
+  const c = await Contenido.findOne({ claseId }, 'titulo resumen diapositivas publicado privada asistentes');
   if (!c) return res.status(404).json({ detail: 'Esta clase no tiene contenido' });
-  if (req.usuario.rol !== 'profesora' && !c.publicado) return res.status(403).json({ detail: 'Clase no publicada' });
+  if (!tieneAcceso(c, req.usuario)) return res.status(403).json({ detail: sinAcceso(c) });
   const diapositiva = c.diapositivas.find((d) => d.n === n);
   if (!diapositiva) return res.status(400).json({ detail: 'Diapositiva invalida' });
 

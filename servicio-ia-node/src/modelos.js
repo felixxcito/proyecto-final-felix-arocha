@@ -22,6 +22,9 @@ const contenidoSchema = new mongoose.Schema({
   resumen: String,
   diapositivas: [diapositivaSchema],
   publicado: { type: Boolean, default: false },
+  privada: { type: Boolean, default: false },      // solo los estudiantes de la lista de asistencia
+  asistentes: [Number],
+  preguntasPorEstudiante: { type: Number, default: 5, min: 1, max: 20 },
   preguntasUsadas: [String],   // para que ninguna pregunta se repita entre estudiantes
 }, { timestamps: true });
 
@@ -35,7 +38,7 @@ const asignacionSchema = new mongoose.Schema({
   estudianteId: { type: Number, required: true },
   estudianteNombre: String,
   estudianteEmail: String,
-  preguntas: [preguntaSchema],          // exactamente 5, distintas a las de otros estudiantes
+  preguntas: [preguntaSchema],          // N preguntas, distintas a las de otros estudiantes
   entregada: { type: Boolean, default: false },
   entregadaEn: Date,
 }, { timestamps: true });
