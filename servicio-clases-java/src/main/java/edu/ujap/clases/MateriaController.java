@@ -11,7 +11,7 @@ import org.springframework.web.server.ResponseStatusException;
 /**
  * Materias y secciones — Java + Spring Data JPA (@OneToMany / @ManyToOne / @ElementCollection)
  *
- * Gateway: http://localhost/api/clases/...
+ * Gateway: https://localhost/api/clases/...
  *   GET    /materias                       -> profesora: todas; estudiante: solo donde esta inscrito
  *   POST   /materias                       -> crear materia
  *   PUT    /materias/{id}                  -> editar

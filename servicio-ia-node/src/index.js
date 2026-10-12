@@ -1,7 +1,7 @@
 /*
  * Microservicio de IA — Node.js + Express + Mongoose + MongoDB + IA (NVIDIA NIM o Google Gemini)
  *
- * Gateway: http://localhost/api/ia/...
+ * Gateway: https://localhost/api/ia/...
  *   GET  /clases/:id/contenido        -> explicacion de cada diapositiva
  *   PUT  /clases/:id/contenido        -> la profesora corrige lo que genero la IA
  *   POST /clases/:id/regenerar        -> volver a pedir las explicaciones a la IA

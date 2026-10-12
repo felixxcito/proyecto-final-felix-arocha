@@ -1,6 +1,6 @@
 // Microservicio de NOTIFICACIONES — Go + Gin + GORM + PostgreSQL
 //
-// Gateway: http://localhost/api/notificaciones/...
+// Gateway: https://localhost/api/notificaciones/...
 //   GET   /                    -> notificaciones del usuario del token (+ conteo no leidas)
 //   PATCH /:id/leida           -> marcar una como leida
 //   POST  /leer-todas          -> marcar todas como leidas

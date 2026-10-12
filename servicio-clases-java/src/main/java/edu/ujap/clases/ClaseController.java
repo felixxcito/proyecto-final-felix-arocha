@@ -17,7 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
 /**
  * Microservicio de CLASES — Java + Spring Boot + Spring Data JPA + PostgreSQL
  *
- * Gateway: http://localhost/api/clases/...
+ * Gateway: https://localhost/api/clases/...
  *   GET    /temas                     -> profesora: todos; estudiante: los de sus secciones
  *   GET    /temas/{id}
  *   POST   /temas                     -> crear tema (profesora)

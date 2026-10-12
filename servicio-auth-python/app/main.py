@@ -1,7 +1,7 @@
 """
 Microservicio de AUTENTICACION y USUARIOS — Python + FastAPI + SQLAlchemy + PostgreSQL
 
-Gateway: http://localhost/api/auth/...
+Gateway: https://localhost/api/auth/...
   POST   /login               -> token JWT
   GET    /me                  -> datos del usuario del token
   GET    /usuarios            -> lista (profesora o servicio interno), filtro ?rol=
@@ -34,7 +34,7 @@ app = FastAPI(title="Servicio Auth (Python)")
 
 CLASES_URL = "http://servicio-clases:8080"
 NOTIF_URL = "http://servicio-notificaciones:8080"
-PUBLIC_URL = os.getenv("PUBLIC_URL", "http://localhost")
+PUBLIC_URL = os.getenv("PUBLIC_URL", "https://localhost")
 
 
 # ----------------------------------------------------------------- arranque

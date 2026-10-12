@@ -3,7 +3,7 @@
 const AUTH = 'http://servicio-auth:8000';
 const CLASES = 'http://servicio-clases:8080';
 const NOTIF = 'http://servicio-notificaciones:8080';
-const PUBLIC_URL = process.env.PUBLIC_URL || 'http://localhost';
+const PUBLIC_URL = process.env.PUBLIC_URL || 'https://localhost';
 
 const headers = () => ({ 'Content-Type': 'application/json', 'X-Internal-Token': process.env.INTERNAL_TOKEN });
 
