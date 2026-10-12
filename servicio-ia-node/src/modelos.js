@@ -1,0 +1,47 @@
+// Modelos de MongoDB con Mongoose (NoSQL de la Clase 12).
+// Usamos documentos porque el contenido de cada presentacion tiene forma variable
+// (N diapositivas, banco de preguntas que crece, respuestas anidadas).
+const mongoose = require('mongoose');
+
+const diapositivaSchema = new mongoose.Schema({
+  n: { type: Number, required: true },
+  titulo: String,
+  texto: String,        // texto extraido del PDF/PPTX
+  explicacion: String,  // redactada por la IA (editable por la profesora)
+}, { _id: false });
+
+const contenidoSchema = new mongoose.Schema({
+  claseId: { type: Number, required: true, unique: true },
+  titulo: String,
+  descripcion: String,
+  nombreArchivo: String,
+  tipo: String,
+  estado: { type: String, enum: ['procesando', 'listo', 'error'], default: 'procesando' },
+  error: String,
+  modo: { type: String, enum: ['gemini', 'demo'] },
+  resumen: String,
+  diapositivas: [diapositivaSchema],
+  publicado: { type: Boolean, default: false },
+  preguntasUsadas: [String],   // para que ninguna pregunta se repita entre estudiantes
+}, { timestamps: true });
+
+const preguntaSchema = new mongoose.Schema({
+  texto: { type: String, required: true },
+  respuesta: { type: String, default: '' },
+});
+
+const asignacionSchema = new mongoose.Schema({
+  claseId: { type: Number, required: true, index: true },
+  estudianteId: { type: Number, required: true },
+  estudianteNombre: String,
+  estudianteEmail: String,
+  preguntas: [preguntaSchema],          // exactamente 5, distintas a las de otros estudiantes
+  entregada: { type: Boolean, default: false },
+  entregadaEn: Date,
+}, { timestamps: true });
+asignacionSchema.index({ claseId: 1, estudianteId: 1 }, { unique: true });
+
+module.exports = {
+  Contenido: mongoose.model('Contenido', contenidoSchema),
+  Asignacion: mongoose.model('Asignacion', asignacionSchema),
+};
