@@ -165,12 +165,13 @@ async function vistaClase(id) {
     activarPanelProfesora(tema);
   }
   // Mientras la IA procesa, se refresca cada 4 segundos
-  if (tema.estado === 'PROCESANDO') temporizador = setTimeout(() => location.hash === `#/clase/${id}` && vistaClase(id), 4000);
+  const trabajando = tema.estado === 'PROCESANDO' || (esProfe && (tema.mensajeEstado || '').includes('Generando'));
+  if (trabajando) temporizador = setTimeout(() => location.hash === `#/clase/${id}` && vistaClase(id), 4000);
 }
 
 function panelProfesora(tema, contenido) {
   const claseEstado = { ERROR: 'err', PUBLICADA: 'ok' }[tema.estado] || '';
-  const spinner = tema.estado === 'PROCESANDO' ? '<div class="spinner"></div>' : '';
+  const spinner = tema.estado === 'PROCESANDO' || (tema.mensajeEstado || '').includes('Generando') ? '<div class="spinner"></div>' : '';
   const modo = contenido?.modo === 'demo' ? ' <span class="badge warn">modo demo</span>' : '';
   return `<div class="card" style="margin-bottom:1rem">
     <div class="row" style="justify-content:space-between;margin-bottom:.8rem">
