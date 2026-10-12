@@ -150,7 +150,10 @@ function asignarPreguntas(claseId, estudiantes) {
     if (!contenido) return;
     const yaTienen = new Set((await Asignacion.find({ claseId }, 'estudianteId')).map((a) => a.estudianteId));
     const pendientes = estudiantes.filter((e) => !yaTienen.has(e.id));
-    if (!pendientes.length) return;
+    if (!pendientes.length) {
+      await actualizarEstadoClase(claseId, 'PUBLICADA', `Publicada. ${yaTienen.size} estudiante(s) tienen sus preguntas; no hay estudiantes nuevos.`);
+      return;
+    }
 
     const preguntas = barajar(await preguntasNuevas(contenido, pendientes.length * PREGUNTAS_POR_ESTUDIANTE));
     for (const [i, est] of pendientes.entries()) {
@@ -164,6 +167,9 @@ function asignarPreguntas(claseId, estudiantes) {
         `Ya puedes estudiar la clase "${contenido.titulo}" con la explicacion de cada diapositiva. Tienes ${PREGUNTAS_POR_ESTUDIANTE} preguntas para responder.`,
         `#/clase/${claseId}`);
     }
+    const total = await Asignacion.countDocuments({ claseId });
+    await actualizarEstadoClase(claseId, 'PUBLICADA',
+      `Publicada. ${total} estudiante(s) tienen sus ${PREGUNTAS_POR_ESTUDIANTE} preguntas unicas.`);
     console.log(`Clase ${claseId}: preguntas asignadas a ${pendientes.length} estudiante(s)`);
   });
 }
