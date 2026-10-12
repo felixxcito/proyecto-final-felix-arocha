@@ -41,7 +41,20 @@ const asignacionSchema = new mongoose.Schema({
 }, { timestamps: true });
 asignacionSchema.index({ claseId: 1, estudianteId: 1 }, { unique: true });
 
+// Dudas que los estudiantes le preguntan a la IA desde el visor de diapositivas
+const consultaSchema = new mongoose.Schema({
+  claseId: { type: Number, required: true, index: true },
+  diapositiva: { type: Number, required: true },
+  usuarioId: { type: Number, required: true },
+  usuarioNombre: String,
+  rol: String,
+  pregunta: { type: String, required: true },
+  respuesta: String,
+  modo: { type: String, enum: ['ia', 'demo'] },
+}, { timestamps: true });
+
 module.exports = {
   Contenido: mongoose.model('Contenido', contenidoSchema),
   Asignacion: mongoose.model('Asignacion', asignacionSchema),
+  Consulta: mongoose.model('Consulta', consultaSchema),
 };

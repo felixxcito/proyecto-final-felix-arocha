@@ -8,6 +8,8 @@
  *   GET  /clases/:id/mis-preguntas    -> las 5 preguntas del estudiante
  *   PUT  /clases/:id/mis-preguntas    -> guardar / entregar respuestas
  *   GET  /clases/:id/respuestas       -> (profesora) respuestas de todos
+ *   POST /clases/:id/consultas        -> preguntarle a la IA sobre una diapositiva
+ *   GET  /clases/:id/consultas        -> estudiante: sus dudas / profesora: las de todos
  *   GET  /mis-asignaciones            -> (estudiante) estado de sus preguntas
  *   GET  /estadisticas                -> (profesora) entregas por clase
  * Internos (solo otros microservicios, header X-Internal-Token):
@@ -21,7 +23,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 
-const { Contenido, Asignacion } = require('./modelos');
+const { Contenido, Asignacion, Consulta } = require('./modelos');
 const { extraerDiapositivas } = require('./extraer');
 const ia = require('./ia');
 const { explicarDemo, preguntasDemo, normalizar, barajar } = require('./demo');
@@ -206,6 +208,7 @@ app.delete('/interno/clases/:id', soloInterno, h(async (req, res) => {
   const claseId = Number(req.params.id);
   await Contenido.deleteOne({ claseId });
   await Asignacion.deleteMany({ claseId });
+  await Consulta.deleteMany({ claseId });
   res.status(204).end();
 }));
 
@@ -283,6 +286,44 @@ app.put('/clases/:id/mis-preguntas', conToken, soloEstudiante, h(async (req, res
 
 app.get('/clases/:id/respuestas', conToken, soloProfesora, h(async (req, res) => {
   res.json(await Asignacion.find({ claseId: Number(req.params.id) }).sort('estudianteNombre'));
+}));
+
+// ------------------------------------------------------------------ dudas a la IA (visor)
+app.post('/clases/:id/consultas', conToken, h(async (req, res) => {
+  const claseId = Number(req.params.id);
+  const n = Number(req.body.diapositiva);
+  const pregunta = String(req.body.pregunta || '').trim().slice(0, 1000);
+  if (!pregunta) return res.status(400).json({ detail: 'Escribe tu pregunta' });
+
+  const c = await Contenido.findOne({ claseId }, 'titulo resumen diapositivas publicado');
+  if (!c) return res.status(404).json({ detail: 'Esta clase no tiene contenido' });
+  if (req.usuario.rol !== 'profesora' && !c.publicado) return res.status(403).json({ detail: 'Clase no publicada' });
+  const diapositiva = c.diapositivas.find((d) => d.n === n);
+  if (!diapositiva) return res.status(400).json({ detail: 'Diapositiva invalida' });
+
+  const historial = await Consulta.find({ claseId, diapositiva: n, usuarioId: req.usuario.id }).sort('createdAt');
+  let respuesta;
+  let modo = 'ia';
+  if (ia.activo()) {
+    respuesta = await ia.responderDuda({ titulo: c.titulo, resumen: c.resumen, diapositiva, historial, pregunta });
+  } else {
+    modo = 'demo';
+    respuesta = `(Modo demo) Recibí tu pregunta sobre "${diapositiva.titulo}". Con una API key configurada, aquí la IA `
+      + `respondería usando el contenido de esta diapositiva. Mientras tanto, repasa la explicación: ${diapositiva.explicacion.slice(0, 300)}...`;
+  }
+  const consulta = await Consulta.create({
+    claseId, diapositiva: n, usuarioId: req.usuario.id, usuarioNombre: req.usuario.nombre, rol: req.usuario.rol,
+    pregunta, respuesta: respuesta || 'La IA no devolvio respuesta, intenta de nuevo.', modo,
+  });
+  res.status(201).json(consulta);
+}));
+
+app.get('/clases/:id/consultas', conToken, h(async (req, res) => {
+  const filtro = { claseId: Number(req.params.id) };
+  // La profesora ve las dudas de todos los estudiantes; cada estudiante solo las suyas
+  if (req.usuario.rol === 'profesora') filtro.rol = 'estudiante';
+  else filtro.usuarioId = req.usuario.id;
+  res.json(await Consulta.find(filtro).sort('createdAt'));
 }));
 
 app.get('/mis-asignaciones', conToken, soloEstudiante, h(async (req, res) => {

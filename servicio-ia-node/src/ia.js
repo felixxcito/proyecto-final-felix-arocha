@@ -14,9 +14,9 @@ const LLAMADAS_EN_PARALELO = 3;
 const activo = () => Boolean(PROVEEDOR === 'gemini' ? GEMINI_KEY : NVIDIA_KEY);
 const MODELO = PROVEEDOR === 'gemini' ? `Gemini ${GEMINI_MODEL}` : `NVIDIA ${NVIDIA_MODEL}`;
 
-const SISTEMA = 'Eres asistente docente de la materia "Lenguajes de Programacion" (LPR07304) de la Universidad '
-  + 'Jose Antonio Paez, Venezuela. Escribes en espanol claro para estudiantes universitarios. '
-  + 'Respondes UNICAMENTE con JSON valido, sin texto adicional ni bloques de codigo markdown.';
+const CONTEXTO = 'Eres asistente docente de la materia "Lenguajes de Programacion" (LPR07304) de la Universidad '
+  + 'Jose Antonio Paez, Venezuela. Escribes en espanol claro para estudiantes universitarios.';
+const SISTEMA = `${CONTEXTO} Respondes UNICAMENTE con JSON valido, sin texto adicional ni bloques de codigo markdown.`;
 
 /** Extrae el JSON aunque el modelo lo envuelva en ```json ... ``` o agregue texto. */
 function parsearJSON(texto) {
@@ -33,7 +33,7 @@ const NVIDIA_RESPALDO = [NVIDIA_MODEL, 'google/gemma-4-31b-it', 'nvidia/nemotron
   .filter((m, i, arr) => arr.indexOf(m) === i);
 let nvidiaModeloActual = NVIDIA_MODEL;
 
-async function nvidia(prompt, temperatura) {
+async function nvidia(sistema, mensajes, temperatura) {
   let ultimoError;
   for (const modelo of NVIDIA_RESPALDO.slice(NVIDIA_RESPALDO.indexOf(nvidiaModeloActual))) {
     const res = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
@@ -41,7 +41,7 @@ async function nvidia(prompt, temperatura) {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${NVIDIA_KEY}` },
       body: JSON.stringify({
         model: modelo,
-        messages: [{ role: 'system', content: SISTEMA }, { role: 'user', content: prompt }],
+        messages: [{ role: 'system', content: sistema }, ...mensajes],
         temperature: temperatura,
         max_tokens: 8192,
         stream: true, // la respuesta llega por partes: evita que la conexion se corte en respuestas largas
@@ -81,15 +81,16 @@ async function leerStream(res) {
   return texto;
 }
 
-async function gemini(prompt, temperatura) {
-  const generationConfig = { responseMimeType: 'application/json', temperature: temperatura };
+async function gemini(sistema, mensajes, temperatura, json = true) {
+  const generationConfig = { temperature: temperatura };
+  if (json) generationConfig.responseMimeType = 'application/json';
   if (GEMINI_MODEL.includes('flash')) generationConfig.thinkingConfig = { thinkingBudget: 0 };
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
     body: JSON.stringify({
-      systemInstruction: { parts: [{ text: SISTEMA }] },
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      systemInstruction: { parts: [{ text: sistema }] },
+      contents: mensajes.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
       generationConfig,
     }),
   });
@@ -100,13 +101,35 @@ async function gemini(prompt, temperatura) {
 
 /** Envia el prompt al proveedor configurado y devuelve el JSON de la respuesta (1 reintento). */
 async function pedirJSON(prompt, temperatura = 0.5) {
-  const llamar = PROVEEDOR === 'gemini' ? gemini : nvidia;
+  const llamar = () => (PROVEEDOR === 'gemini' ? gemini : nvidia)(SISTEMA, [{ role: 'user', content: prompt }], temperatura);
   try {
-    return parsearJSON(await llamar(prompt, temperatura));
+    return parsearJSON(await llamar());
   } catch (e) {
     console.warn('Reintentando llamada a la IA:', e.message);
-    return parsearJSON(await llamar(prompt, temperatura));
+    return parsearJSON(await llamar());
   }
+}
+
+/**
+ * Chat del visor: el estudiante pregunta sobre la diapositiva que esta viendo.
+ * `historial` son las preguntas/respuestas anteriores de ese estudiante en esa diapositiva.
+ */
+async function responderDuda({ titulo, resumen, diapositiva, historial, pregunta }) {
+  const sistema = `${CONTEXTO}
+Eres un tutor paciente. El estudiante esta viendo la diapositiva ${diapositiva.n} ("${diapositiva.titulo}") de la clase "${titulo}".
+Responde su duda en 40 a 180 palabras, con ejemplos sencillos y, si ayuda, un fragmento corto de codigo.
+Si la pregunta no tiene relacion con la materia, indicalo amablemente y vuelve al tema. Escribe en texto plano (sin markdown pesado).
+
+Resumen de la clase: ${resumen}
+Texto de la diapositiva:
+${diapositiva.texto || '(diapositiva visual)'}
+Explicacion que ya leyo el estudiante:
+${diapositiva.explicacion}`;
+  const mensajes = [];
+  for (const h of historial.slice(-4)) mensajes.push({ role: 'user', content: h.pregunta }, { role: 'assistant', content: h.respuesta });
+  mensajes.push({ role: 'user', content: pregunta });
+  const texto = PROVEEDOR === 'gemini' ? await gemini(sistema, mensajes, 0.5, false) : await nvidia(sistema, mensajes, 0.5);
+  return texto.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 }
 
 async function explicarPresentacion({ titulo, descripcion, diapositivas }) {
@@ -158,4 +181,4 @@ ${material}`, 1.0);
   return (r.preguntas || []).filter((p) => typeof p === 'string');
 }
 
-module.exports = { activo, explicarPresentacion, generarPreguntas, MODELO, PROVEEDOR };
+module.exports = { activo, explicarPresentacion, generarPreguntas, responderDuda, MODELO, PROVEEDOR };
