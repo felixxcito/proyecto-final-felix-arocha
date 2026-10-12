@@ -166,12 +166,21 @@ public class ClaseController {
     Clase c = buscar(id);
     if (!"BORRADOR".equals(c.getEstado()) && !"PUBLICADA".equals(c.getEstado()))
       throw new ResponseStatusException(HttpStatus.CONFLICT, "Primero sube la presentacion y espera a que la IA termine");
-    // Java -> Node: genera 5 preguntas distintas por estudiante y avisa (Node -> Go)
-    ia.post("/interno/asignar", Map.of("claseId", id, "titulo", c.getTitulo()));
+    String estadoAnterior = c.getEstado();
     c.setEstado("PUBLICADA");
     c.setMensajeEstado("Publicada. Generando preguntas para cada estudiante...");
     if (c.getPublicadaEn() == null) c.setPublicadaEn(Instant.now());
-    return repo.save(c);
+    repo.save(c); // se guarda antes de llamar a Node, que actualizara el mensaje al terminar
+    // Java -> Node: genera 5 preguntas distintas por estudiante y avisa (Node -> Go)
+    try {
+      ia.post("/interno/asignar", Map.of("claseId", id, "titulo", c.getTitulo()));
+    } catch (Exception e) {
+      c.setEstado(estadoAnterior);
+      c.setMensajeEstado("El servicio de IA no respondio: " + e.getMessage());
+      repo.save(c);
+      throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "El servicio de IA no respondio");
+    }
+    return c;
   }
 
   /** Node -> Java: el servicio de IA informa el resultado del procesamiento. */
