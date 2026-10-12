@@ -36,13 +36,15 @@ public class ClaseController {
   private final ClaseRepo repo;
   private final Auth auth;
   private final IaCliente ia;
+  private final Conversor conversor;
   private final Path uploads;
 
-  public ClaseController(ClaseRepo repo, Auth auth, IaCliente ia, @Value("${app.uploads}") String uploads)
-      throws IOException {
+  public ClaseController(ClaseRepo repo, Auth auth, IaCliente ia, Conversor conversor,
+      @Value("${app.uploads}") String uploads) throws IOException {
     this.repo = repo;
     this.auth = auth;
     this.ia = ia;
+    this.conversor = conversor;
     this.uploads = Files.createDirectories(Path.of(uploads));
   }
 
@@ -88,6 +90,22 @@ public class ClaseController {
         .body(new FileSystemResource(c.getArchivoRuta()));
   }
 
+  /** PDF para el visor de diapositivas (pdf.js en el navegador). */
+  @GetMapping("/temas/{id}/diapositivas.pdf")
+  public ResponseEntity<FileSystemResource> pdf(@PathVariable Long id,
+      @RequestHeader(value = "Authorization", required = false) String h,
+      @RequestParam(value = "token", required = false) String token) {
+    Claims u = auth.usuario(h != null ? h : token);
+    Clase c = buscar(id);
+    if (!auth.esProfesora(u) && !"PUBLICADA".equals(c.getEstado()))
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Clase no publicada");
+    if (c.getPdfRuta() == null || !Files.exists(Path.of(c.getPdfRuta())))
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "La vista de diapositivas aun no esta lista");
+    return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF)
+        .header(HttpHeaders.CACHE_CONTROL, "private, max-age=300")
+        .body(new FileSystemResource(c.getPdfRuta()));
+  }
+
   // ----------------------------------------------------------------- CRUD profesora
   @PostMapping("/temas")
   public ResponseEntity<Clase> crear(@RequestBody TemaIn in, @RequestHeader(value = "Authorization", required = false) String h) {
@@ -112,6 +130,7 @@ public class ClaseController {
     auth.profesora(h);
     Clase c = buscar(id);
     if (c.getArchivoRuta() != null) Files.deleteIfExists(Path.of(c.getArchivoRuta()));
+    if (c.getPdfRuta() != null) Files.deleteIfExists(Path.of(c.getPdfRuta()));
     repo.delete(c);
     try {
       ia.delete("/interno/clases/" + id);
@@ -134,7 +153,11 @@ public class ClaseController {
 
     Path destino = uploads.resolve("clase-" + id + "." + ext);
     if (c.getArchivoRuta() != null) Files.deleteIfExists(Path.of(c.getArchivoRuta()));
+    if (c.getPdfRuta() != null && !c.getPdfRuta().equals(c.getArchivoRuta())) Files.deleteIfExists(Path.of(c.getPdfRuta()));
     archivo.transferTo(destino);
+    boolean esPdf = "pdf".equals(ext);
+    c.setPdfRuta(esPdf ? destino.toString() : null);
+    c.setVistaEstado(esPdf ? "LISTA" : "CONVIRTIENDO");
 
     c.setArchivoNombre(nombre);
     c.setArchivoRuta(destino.toString());
@@ -142,6 +165,7 @@ public class ClaseController {
     c.setEstado("PROCESANDO");
     c.setMensajeEstado("La IA esta leyendo la presentacion...");
     repo.save(c);
+    if (!esPdf) conversor.convertir(id, destino); // PPTX -> PDF con LibreOffice, en segundo plano
 
     // Java -> Node: el servicio de IA responde 202 y procesa en segundo plano
     try {

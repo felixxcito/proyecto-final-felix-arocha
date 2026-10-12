@@ -5,6 +5,7 @@ import java.time.Instant;
 
 /** Entidad JPA: Hibernate crea la tabla "clase" automaticamente (ddl-auto=update). */
 @Entity
+@org.hibernate.annotations.DynamicUpdate // el UPDATE solo incluye las columnas que cambiaron
 public class Clase {
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -20,6 +21,11 @@ public class Clase {
   private String archivoNombre;
   private String archivoRuta;
   private String archivoTipo;
+
+  /** PDF que se muestra en el visor (el original si era PDF, o la conversion del PPTX). */
+  private String pdfRuta;
+  /** NINGUNA | CONVIRTIENDO | LISTA | ERROR */
+  private String vistaEstado = "NINGUNA";
 
   /** SIN_MATERIAL -> PROCESANDO -> BORRADOR -> PUBLICADA  (o ERROR) */
   private String estado = "SIN_MATERIAL";
@@ -47,6 +53,11 @@ public class Clase {
   public void setArchivoRuta(String archivoRuta) { this.archivoRuta = archivoRuta; }
   public String getArchivoTipo() { return archivoTipo; }
   public void setArchivoTipo(String archivoTipo) { this.archivoTipo = archivoTipo; }
+  @com.fasterxml.jackson.annotation.JsonIgnore
+  public String getPdfRuta() { return pdfRuta; }
+  public void setPdfRuta(String pdfRuta) { this.pdfRuta = pdfRuta; }
+  public String getVistaEstado() { return vistaEstado; }
+  public void setVistaEstado(String vistaEstado) { this.vistaEstado = vistaEstado; }
   public String getEstado() { return estado; }
   public void setEstado(String estado) { this.estado = estado; }
   public String getMensajeEstado() { return mensajeEstado; }

@@ -8,6 +8,9 @@ RUN mvn -q -B package -DskipTests
 
 # ---- Etapa 2: solo el JRE + el .jar
 FROM eclipse-temurin:21-jre-alpine
+# LibreOffice convierte las presentaciones PPTX a PDF para poder mostrarlas en el navegador
+RUN apk add --no-cache libreoffice-impress ttf-dejavu font-noto font-liberation
+ENV HOME=/tmp
 WORKDIR /app
 COPY --from=build /src/target/servicio-clases-1.0.0.jar app.jar
 EXPOSE 8080
