@@ -4,7 +4,7 @@
 // Ambos se usan con un simple POST (sin SDK) para que se vea claramente como se consume el servicio.
 const PROVEEDOR = (process.env.IA_PROVIDER || 'nvidia').toLowerCase();
 const NVIDIA_KEY = process.env.NVIDIA_API_KEY;
-const NVIDIA_MODEL = process.env.NVIDIA_MODEL || 'meta/llama-3.3-70b-instruct';
+const NVIDIA_MODEL = process.env.NVIDIA_MODEL || 'google/gemma-4-31b-it';
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
@@ -19,27 +19,44 @@ const SISTEMA = 'Eres asistente docente de la materia "Lenguajes de Programacion
 
 /** Extrae el JSON aunque el modelo lo envuelva en ```json ... ``` o agregue texto. */
 function parsearJSON(texto) {
-  const limpio = texto.replace(/```(?:json)?/gi, '').trim();
+  // Algunos modelos "razonan" en voz alta dentro de <think>...</think> antes del JSON
+  const limpio = texto.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/```(?:json)?/gi, '').trim();
   const inicio = limpio.indexOf('{');
   const fin = limpio.lastIndexOf('}');
   if (inicio < 0 || fin < inicio) throw new Error('La IA no devolvio JSON');
   return JSON.parse(limpio.slice(inicio, fin + 1));
 }
 
+// NVIDIA retira modelos con frecuencia: si el configurado ya no existe (404/410) se prueba el siguiente
+const NVIDIA_RESPALDO = [NVIDIA_MODEL, 'google/gemma-4-31b-it', 'nvidia/nemotron-3-super-120b-a12b']
+  .filter((m, i, arr) => arr.indexOf(m) === i);
+let nvidiaModeloActual = NVIDIA_MODEL;
+
 async function nvidia(prompt, temperatura) {
-  const res = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${NVIDIA_KEY}` },
-    body: JSON.stringify({
-      model: NVIDIA_MODEL,
-      messages: [{ role: 'system', content: SISTEMA }, { role: 'user', content: prompt }],
-      temperature: temperatura,
-      max_tokens: 4096,
-    }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`NVIDIA ${res.status}: ${data.detail || data.error?.message || JSON.stringify(data)}`);
-  return data.choices?.[0]?.message?.content || '';
+  let ultimoError;
+  for (const modelo of NVIDIA_RESPALDO.slice(NVIDIA_RESPALDO.indexOf(nvidiaModeloActual))) {
+    const res = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${NVIDIA_KEY}` },
+      body: JSON.stringify({
+        model: modelo,
+        messages: [{ role: 'system', content: SISTEMA }, { role: 'user', content: prompt }],
+        temperature: temperatura,
+        max_tokens: 8192,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 404 || res.status === 410) {
+      ultimoError = new Error(`NVIDIA ${res.status}: el modelo ${modelo} no esta disponible`);
+      console.warn(`${ultimoError.message}, probando el siguiente modelo...`);
+      continue;
+    }
+    if (!res.ok) throw new Error(`NVIDIA ${res.status}: ${data.detail || data.error?.message || JSON.stringify(data)}`);
+    if (modelo !== nvidiaModeloActual) console.warn(`Usando el modelo de respaldo ${modelo}`);
+    nvidiaModeloActual = modelo;
+    return data.choices?.[0]?.message?.content || '';
+  }
+  throw ultimoError;
 }
 
 async function gemini(prompt, temperatura) {

@@ -107,12 +107,12 @@ El sistema funciona **sin API key** en *modo demo* (explicaciones y preguntas ge
 
 **Opción A — NVIDIA NIM (gratis, por defecto)**
 1. Entrar a https://build.nvidia.com e iniciar sesión.
-2. Abrir cualquier modelo (p. ej. *llama-3.3-70b-instruct*) → **Get API Key**. La key empieza con `nvapi-`.
+2. Abrir cualquier modelo (p. ej. *gemma-4-31b-it*) → **Get API Key**. La key empieza con `nvapi-`.
 3. En el `.env`:
    ```
    IA_PROVIDER=nvidia
    NVIDIA_API_KEY=nvapi-xxxxxxxx
-   NVIDIA_MODEL=meta/llama-3.3-70b-instruct
+   NVIDIA_MODEL=google/gemma-4-31b-it
    ```
 
 **Opción B — Google Gemini**
