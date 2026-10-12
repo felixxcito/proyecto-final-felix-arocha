@@ -8,7 +8,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/estilos.css">
   <style>
-    .doc { display: grid; grid-template-columns: 220px 1fr; gap: 2rem; align-items: start; }
+    .doc { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 2rem; align-items: start; }
     .toc { position: sticky; top: 80px; font-size: .88rem; }
     .toc a { display: block; padding: .3rem .6rem; border-radius: 6px; color: var(--ink-2); text-decoration: none; }
     .toc a:hover { background: var(--brand-soft); color: var(--brand); }
@@ -33,7 +33,7 @@
     .flujo li { position: relative; padding: .6rem 0 .6rem 2.6rem; border-left: 2px solid var(--line); margin-left: .9rem; }
     .flujo li::before { counter-increment: paso; content: counter(paso); position: absolute; left: -.95rem; top: .5rem; width: 1.8rem; height: 1.8rem;
       border-radius: 50%; background: var(--brand); color: #fff; font-weight: 700; font-size: .8rem; display: grid; place-items: center; }
-    @media (max-width: 860px) { .doc { grid-template-columns: 1fr; } .toc { display: none; } .qcp { grid-template-columns: 1fr; } }
+    @media (max-width: 860px) { .doc { grid-template-columns: minmax(0, 1fr); } .toc { display: none; } .qcp { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
