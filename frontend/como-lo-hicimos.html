@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cómo lo construimos — Aula Virtual LPR</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/estilos.css">
+  <style>
+    .doc { display: grid; grid-template-columns: 220px 1fr; gap: 2rem; align-items: start; }
+    .toc { position: sticky; top: 80px; font-size: .88rem; }
+    .toc a { display: block; padding: .3rem .6rem; border-radius: 6px; color: var(--ink-2); text-decoration: none; }
+    .toc a:hover { background: var(--brand-soft); color: var(--brand); }
+    section.bloque { margin-bottom: 2.6rem; scroll-margin-top: 80px; }
+    section.bloque > h2 { display: flex; gap: .6rem; align-items: baseline; }
+    section.bloque > h2 .n { font-family: var(--mono); color: var(--accent); font-size: .9rem; }
+    .qcp { display: grid; grid-template-columns: repeat(3, 1fr); gap: .8rem; margin: .8rem 0 1rem; }
+    .qcp .card { padding: .9rem 1rem; }
+    .qcp h4 { margin: 0 0 .3rem; font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: var(--brand); }
+    .qcp p { margin: 0; font-size: .9rem; color: var(--ink-2); }
+    pre.code { background: #141824; color: #e6e8ef; padding: 1rem 1.1rem; border-radius: 10px; overflow-x: auto; font-size: .8rem; line-height: 1.6; margin: .6rem 0 1rem; }
+    pre.code .c { color: #7f8aa3; }
+    pre.code .k { color: #f0a868; }
+    .file { font-family: var(--mono); font-size: .75rem; color: var(--ink-3); margin-top: .8rem; }
+    .salud { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: .8rem; }
+    .salud .card { padding: .9rem 1rem; }
+    .punto { width: 10px; height: 10px; border-radius: 50%; background: var(--ink-3); display: inline-block; margin-right: .4rem; }
+    .punto.ok { background: var(--ok); box-shadow: 0 0 0 4px var(--ok-soft); }
+    .punto.err { background: var(--err); box-shadow: 0 0 0 4px var(--err-soft); }
+    .diagrama svg { width: 100%; height: auto; display: block; }
+    .flujo { counter-reset: paso; list-style: none; padding: 0; }
+    .flujo li { position: relative; padding: .6rem 0 .6rem 2.6rem; border-left: 2px solid var(--line); margin-left: .9rem; }
+    .flujo li::before { counter-increment: paso; content: counter(paso); position: absolute; left: -.95rem; top: .5rem; width: 1.8rem; height: 1.8rem;
+      border-radius: 50%; background: var(--brand); color: #fff; font-weight: 700; font-size: .8rem; display: grid; place-items: center; }
+    @media (max-width: 860px) { .doc { grid-template-columns: 1fr; } .toc { display: none; } .qcp { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="inner">
+      <a class="logo" href="/"><span class="mark">LPR</span><span>Aula Virtual</span></a>
+      <nav class="nav"><a href="/app.html">Ir a la plataforma</a><a class="active" href="#">Cómo lo construimos</a></nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="page-head">
+      <div>
+        <p class="semana" style="font-family:var(--mono);color:var(--accent);font-weight:600;margin:0">PROYECTO FINAL · LPR07304 · FÉLIX AROCHA</p>
+        <h1 style="font-size:2.2rem;max-width:22ch">Cómo construimos el Aula Virtual con microservicios</h1>
+        <p class="muted" style="max-width:70ch">Cada herramienta de la Clase 12 está aplicada en este sistema. En cada sección explicamos <strong>qué es</strong>,
+          <strong>cómo la usamos</strong> y <strong>por qué</strong>, con el código real del repositorio.</p>
+      </div>
+    </div>
+
+    <div class="doc">
+      <nav class="toc card">
+        <a href="#rubrica">Rúbrica → implementación</a>
+        <a href="#arquitectura">Arquitectura</a>
+        <a href="#estado">Estado en vivo</a>
+        <a href="#orm">ORMs</a>
+        <a href="#mongo">MongoDB + Mongoose</a>
+        <a href="#compose">Docker Compose</a>
+        <a href="#env">Variables de entorno</a>
+        <a href="#gateway">API Gateway Nginx</a>
+        <a href="#comunicacion">Comunicación entre servicios</a>
+        <a href="#seguridad">Login y claves</a>
+        <a href="#ia">Inteligencia Artificial</a>
+        <a href="#ejecutar">Cómo ejecutarlo</a>
+      </nav>
+
+      <div>
+        <!-- ============================================================ -->
+        <section class="bloque" id="rubrica">
+          <h2><span class="n">01</span>Rúbrica → dónde está cada punto</h2>
+          <div class="card tabla-wrap">
+            <table class="tabla">
+              <thead><tr><th>Criterio</th><th>Pts</th><th>Cómo lo cumplimos</th></tr></thead>
+              <tbody>
+                <tr><td>4 microservicios (1 por lenguaje)</td><td>6</td><td>Python/FastAPI (auth), Node/Express (IA), Java/Spring Boot (clases), Go/Gin (notificaciones)</td></tr>
+                <tr><td>Dockerfile + docker-compose.yml</td><td>4</td><td>Un Dockerfile por servicio (multi-stage en Java y Go) y un compose con 8 contenedores</td></tr>
+                <tr><td>BD SQL en mín. 2 servicios</td><td>3</td><td>PostgreSQL en <strong>3</strong> servicios: SQLAlchemy, Spring Data JPA y GORM (una BD por servicio)</td></tr>
+                <tr><td>BD NoSQL en mín. 1 servicio</td><td>2</td><td>MongoDB con Mongoose en el servicio de IA</td></tr>
+                <tr><td>Frontend consumiendo APIs</td><td>2</td><td>HTML/CSS/JS servido por Nginx; consume los 4 servicios vía <code>/api/*</code></td></tr>
+                <tr><td>Comunicación entre microservicios</td><td>2</td><td>Java→Node, Node→Python, Node→Java, Python→Node, Python/Node→Go (ver sección 09)</td></tr>
+                <tr><td>README con diagrama</td><td>1</td><td><code>README.md</code> con diagrama, tabla de servicios e instrucciones</td></tr>
+                <tr><td><strong>BONUS</strong> API Gateway Nginx</td><td>+2</td><td><code>nginx/nginx.conf</code>: único punto de entrada en el puerto 80</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="bloque" id="arquitectura">
+          <h2><span class="n">02</span>Arquitectura</h2>
+          <p>El navegador solo habla con Nginx (puerto 80). Nginx reparte cada ruta <code>/api/...</code> a su microservicio.
+            Los servicios se comunican entre sí por la red interna de Docker usando el nombre del servicio como dirección.</p>
+          <div class="card diagrama">
+            <svg viewBox="0 0 860 470" role="img" aria-label="Diagrama de arquitectura">
+              <defs><marker id="f" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#7c8291"/></marker></defs>
+              <g font-family="Plus Jakarta Sans, sans-serif" font-size="13" text-anchor="middle">
+                <rect x="330" y="10" width="200" height="46" rx="10" fill="#e6ecfb" stroke="#1f3a8a"/>
+                <text x="430" y="38" font-weight="700" fill="#1f3a8a">Navegador (Frontend)</text>
+                <line x1="430" y1="56" x2="430" y2="88" stroke="#7c8291" stroke-width="1.5" marker-end="url(#f)"/>
+                <rect x="280" y="90" width="300" height="56" rx="10" fill="#1f3a8a"/>
+                <text x="430" y="114" font-weight="700" fill="#fff">Nginx — API Gateway :80</text>
+                <text x="430" y="133" fill="#cdd7f5" font-size="11">sirve el frontend y enruta /api/*</text>
+                <g stroke="#7c8291" stroke-width="1.5" marker-end="url(#f)">
+                  <line x1="330" y1="146" x2="115" y2="208"/><line x1="400" y1="146" x2="325" y2="208"/>
+                  <line x1="460" y1="146" x2="535" y2="208"/><line x1="530" y1="146" x2="745" y2="208"/>
+                </g>
+                <g font-size="11" fill="#7c8291">
+                  <text x="190" y="170">/api/auth/</text><text x="340" y="182">/api/ia/</text>
+                  <text x="520" y="182">/api/clases/</text><text x="685" y="170">/api/notificaciones/</text>
+                </g>
+                <g>
+                  <rect x="20" y="210" width="190" height="70" rx="10" fill="#fff" stroke="#3572A5" stroke-width="2"/>
+                  <text x="115" y="238" font-weight="700">auth · Python</text><text x="115" y="258" font-size="11" fill="#4a5161">FastAPI + SQLAlchemy</text>
+                  <rect x="230" y="210" width="190" height="70" rx="10" fill="#fff" stroke="#3c873a" stroke-width="2"/>
+                  <text x="325" y="238" font-weight="700">ia · Node.js</text><text x="325" y="258" font-size="11" fill="#4a5161">Express + Mongoose</text>
+                  <rect x="440" y="210" width="190" height="70" rx="10" fill="#fff" stroke="#b07219" stroke-width="2"/>
+                  <text x="535" y="238" font-weight="700">clases · Java</text><text x="535" y="258" font-size="11" fill="#4a5161">Spring Boot + JPA</text>
+                  <rect x="650" y="210" width="190" height="70" rx="10" fill="#fff" stroke="#00ADD8" stroke-width="2"/>
+                  <text x="745" y="238" font-weight="700">notificaciones · Go</text><text x="745" y="258" font-size="11" fill="#4a5161">Gin + GORM</text>
+                </g>
+                <g stroke="#d9822b" stroke-width="1.5" stroke-dasharray="5 4" fill="none" marker-end="url(#f)">
+                  <path d="M440 300 C 400 330, 360 330, 330 302"/>
+                  <path d="M240 300 C 200 330, 150 330, 120 302"/>
+                  <path d="M410 300 C 520 360, 680 350, 740 302"/>
+                </g>
+                <g font-size="11" fill="#d9822b">
+                  <text x="388" y="338">Java→Node</text><text x="180" y="338">Node→Python</text><text x="600" y="352">→ Go (notificar)</text>
+                </g>
+                <g stroke="#7c8291" stroke-width="1.5" marker-end="url(#f)">
+                  <line x1="115" y1="280" x2="230" y2="388"/><line x1="535" y1="280" x2="290" y2="388"/>
+                  <line x1="745" y1="280" x2="350" y2="388"/><line x1="325" y1="280" x2="610" y2="388"/>
+                </g>
+                <rect x="160" y="390" width="250" height="60" rx="10" fill="#f0eee8" stroke="#4a5161"/>
+                <text x="285" y="415" font-weight="700">PostgreSQL 15</text><text x="285" y="435" font-size="11" fill="#4a5161">auth_db · clases_db · notif_db</text>
+                <rect x="520" y="390" width="200" height="60" rx="10" fill="#f0eee8" stroke="#4a5161"/>
+                <text x="620" y="415" font-weight="700">MongoDB 7</text><text x="620" y="435" font-size="11" fill="#4a5161">contenidos · asignaciones</text>
+              </g>
+            </svg>
+          </div>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="bloque" id="estado">
+          <h2><span class="n">03</span>Estado en vivo de los servicios</h2>
+          <p>Esta página llama ahora mismo a <code>/api/&lt;servicio&gt;/health</code> de cada microservicio a través del gateway.</p>
+          <div class="salud" id="salud"></div>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="bloque" id="orm">
+          <h2><span class="n">04</span>ORMs: un ORM por lenguaje</h2>
+          <div class="qcp">
+            <div class="card"><h4>Qué es</h4><p>Un ORM (Object-Relational Mapper) convierte clases del lenguaje en tablas y objetos en filas, así no escribimos SQL a mano.</p></div>
+            <div class="card"><h4>Cómo lo usamos</h4><p>Cada servicio SQL usa el ORM de su lenguaje visto en clase, y cada uno tiene su propia base de datos dentro de Postgres.</p></div>
+            <div class="card"><h4>Por qué</h4><p>Las tablas se crean solas al arrancar (create_all / ddl-auto / AutoMigrate), el código queda más legible y evitamos inyección SQL.</p></div>
+          </div>
+
+          <div class="file">servicio-auth-python/app/database.py — SQLAlchemy</div>
+<pre class="code"><span class="k">class</span> Usuario(Base):
+    __tablename__ = <span class="k">"usuarios"</span>
+    id = Column(Integer, primary_key=True)
+    email = Column(String(160), unique=True, nullable=False, index=True)
+    password_hash = Column(String(100), nullable=False)   <span class="c"># nunca la clave en texto plano</span>
+    rol = Column(String(20), default=<span class="k">"estudiante"</span>)
+
+Base.metadata.create_all(engine)   <span class="c"># crea la tabla al arrancar</span></pre>
+
+          <div class="file">servicio-clases-java/.../Clase.java + ClaseRepo.java — Spring Data JPA</div>
+<pre class="code"><span class="k">@Entity</span>
+<span class="k">public class</span> Clase {
+  <span class="k">@Id @GeneratedValue</span>(strategy = GenerationType.IDENTITY) <span class="k">private</span> Long id;
+  <span class="k">private</span> Integer semana;
+  <span class="k">private</span> String titulo;
+  <span class="k">private</span> String estado = <span class="k">"SIN_MATERIAL"</span>;  <span class="c">// -> PROCESANDO -> BORRADOR -> PUBLICADA</span>
+}
+
+<span class="k">@Repository</span>
+<span class="k">public interface</span> ClaseRepo <span class="k">extends</span> JpaRepository&lt;Clase, Long&gt; {
+  List&lt;Clase&gt; findAllByOrderBySemanaAscIdAsc();   <span class="c">// Spring genera el SQL por el nombre del metodo</span>
+}</pre>
+
+          <div class="file">servicio-notificaciones-go/main.go — GORM</div>
+<pre class="code"><span class="k">type</span> Notificacion <span class="k">struct</span> {
+	gorm.Model                 <span class="c">// ID, CreatedAt, UpdatedAt, DeletedAt</span>
+	UsuarioID <span class="k">int</span>    `gorm:"index"`
+	Titulo    <span class="k">string</span>
+	Leida     <span class="k">bool</span>   `gorm:"default:false"`
+}
+
+db.AutoMigrate(&amp;Notificacion{})
+db.Where(<span class="k">"usuario_id = ?"</span>, uid).Order(<span class="k">"created_at desc"</span>).Find(&amp;lista)</pre>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="bloque" id="mongo">
+          <h2><span class="n">05</span>MongoDB + Mongoose (NoSQL)</h2>
+          <div class="qcp">
+            <div class="card"><h4>Qué es</h4><p>Base de datos de documentos JSON, sin esquema rígido. Mongoose agrega modelos y validación desde Node.js.</p></div>
+            <div class="card"><h4>Cómo lo usamos</h4><p>El servicio de IA guarda el contenido de cada presentación y las 5 preguntas + respuestas de cada estudiante.</p></div>
+            <div class="card"><h4>Por qué</h4><p>Cada presentación tiene un número distinto de diapositivas y las preguntas van anidadas: un documento lo representa natural, sin tablas intermedias.</p></div>
+          </div>
+          <div class="file">servicio-ia-node/src/modelos.js</div>
+<pre class="code"><span class="k">const</span> contenidoSchema = <span class="k">new</span> mongoose.Schema({
+  claseId:        { type: Number, required: true, unique: true },
+  diapositivas:   [{ n: Number, titulo: String, texto: String, explicacion: String }],
+  publicado:      { type: Boolean, default: <span class="k">false</span> },
+  preguntasUsadas: [String],   <span class="c">// para que ninguna pregunta se repita entre estudiantes</span>
+});
+
+<span class="k">const</span> asignacionSchema = <span class="k">new</span> mongoose.Schema({
+  claseId: Number, estudianteId: Number,
+  preguntas: [{ texto: String, respuesta: String }],   <span class="c">// exactamente 5</span>
+  entregada: { type: Boolean, default: <span class="k">false</span> },
+});
+asignacionSchema.index({ claseId: 1, estudianteId: 1 }, { unique: <span class="k">true</span> });</pre>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="bloque" id="compose">
+          <h2><span class="n">06</span>Docker Compose avanzado</h2>
+          <p>Todo el sistema (2 bases de datos, 4 microservicios, Mailpit y Nginx) se levanta con <code>docker compose up --build</code>.</p>
+          <div class="card tabla-wrap" style="margin-bottom:1rem">
+            <table class="tabla">
+              <thead><tr><th>Concepto</th><th>Cómo lo usamos</th><th>Por qué</th></tr></thead>
+              <tbody>
+                <tr><td><strong>networks</strong></td><td><code>backend</code> (BDs + servicios) y <code>frontend</code> (gateway + servicios)</td><td>Nginx no puede ver las bases de datos; solo los servicios llegan a ellas</td></tr>
+                <tr><td><strong>healthcheck</strong></td><td>Postgres (<code>pg_isready</code>), Mongo (<code>mongosh ping</code>) y cada servicio (<code>/health</code>)</td><td>Saber cuándo un contenedor está <em>listo</em>, no solo encendido</td></tr>
+                <tr><td><strong>depends_on</strong></td><td><code>condition: service_healthy</code> en todos</td><td>Los servicios esperan a su BD y el gateway espera a los 4 servicios</td></tr>
+                <tr><td><strong>volumes</strong></td><td><code>pgdata</code>, <code>mongodata</code>, <code>uploads</code></td><td>Usuarios, clases y presentaciones sobreviven a <code>docker compose down</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="file">docker-compose.yml (fragmento)</div>
+<pre class="code">  servicio-clases:               <span class="c"># Java + Spring Boot + JPA -> Postgres</span>
+    build: ./servicio-clases-java
+    env_file: .env
+    volumes:
+      - uploads:/data/uploads      <span class="c"># las presentaciones persisten</span>
+    depends_on:
+      postgres:
+        condition: service_healthy <span class="c"># espera a que pg_isready responda</span>
+    networks: [backend, frontend]
+    healthcheck:
+      test: [<span class="k">"CMD"</span>, <span class="k">"wget"</span>, <span class="k">"-qO-"</span>, <span class="k">"http://localhost:8080/health"</span>]</pre>
+          <p>Además los Dockerfiles de Java y Go son <strong>multi-stage</strong>: compilan con la imagen completa (Maven / Go) y copian solo el resultado a una imagen pequeña.</p>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="bloque" id="env">
+          <h2><span class="n">07</span>Variables de entorno</h2>
+          <div class="qcp">
+            <div class="card"><h4>Qué es</h4><p>Un archivo <code>.env</code> con credenciales y configuración que se inyecta a cada contenedor con <code>env_file</code>.</p></div>
+            <div class="card"><h4>Cómo lo usamos</h4><p>En el repo solo está <code>.env.example</code>. Ahí van las claves de BD, el JWT, la API key de la IA y el SMTP.</p></div>
+            <div class="card"><h4>Por qué</h4><p>Nunca subimos secretos a GitHub (<code>.env</code> está en <code>.gitignore</code>) y la profesora configura el sistema sin tocar código.</p></div>
+          </div>
+<pre class="code"><span class="c"># Python</span>   DATABASE_URL = os.getenv(<span class="k">"DATABASE_URL_AUTH"</span>)
+<span class="c"># Node</span>     mongoose.connect(process.env.MONGO_URL)
+<span class="c"># Go</span>       gorm.Open(postgres.Open(os.Getenv(<span class="k">"DATABASE_URL_NOTIF"</span>)))
+<span class="c"># Java</span>     spring.datasource.url=${DATABASE_URL_CLASES}</pre>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="bloque" id="gateway">
+          <h2><span class="n">08</span>API Gateway con Nginx (bonus)</h2>
+          <div class="qcp">
+            <div class="card"><h4>Qué es</h4><p>Un reverse proxy: un único punto de entrada que reenvía cada petición al servicio correcto.</p></div>
+            <div class="card"><h4>Cómo lo usamos</h4><p>Nginx sirve el frontend en <code>/</code> y enruta <code>/api/auth</code>, <code>/api/ia</code>, <code>/api/clases</code> y <code>/api/notificaciones</code>.</p></div>
+            <div class="card"><h4>Por qué</h4><p>El frontend no conoce puertos internos, no hay problemas de CORS y se puede cambiar un servicio sin tocar el frontend.</p></div>
+          </div>
+          <div class="file">nginx/nginx.conf (fragmento)</div>
+<pre class="code">upstream clases_svc { server servicio-clases:8080; }
+
+location /api/clases/ {
+  proxy_pass http://clases_svc/;     <span class="c"># /api/clases/temas  ->  servicio-clases:8080/temas</span>
+  proxy_read_timeout 300s;           <span class="c"># la IA puede tardar</span>
+}</pre>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="bloque" id="comunicacion">
+          <h2><span class="n">09</span>Comunicación entre microservicios</h2>
+          <p>Las llamadas internas viajan por la red de Docker (<code>http://servicio-ia:3000</code>, etc.) y se autentican con el header
+            <code>X-Internal-Token</code> definido en el <code>.env</code>. Ejemplo completo cuando la profesora sube y publica una clase:</p>
+          <ol class="flujo">
+            <li><strong>Frontend → Java</strong>: <code>POST /api/clases/temas/12/presentacion</code> con el PDF/PPTX.</li>
+            <li><strong>Java → Node</strong>: <code>POST servicio-ia:3000/interno/procesar</code> con el archivo en base64. Node responde 202 y trabaja en segundo plano.</li>
+            <li><strong>Node → IA externa</strong>: extrae el texto de cada diapositiva y pide las explicaciones (NVIDIA NIM o Gemini).</li>
+            <li><strong>Node → Java</strong>: <code>PATCH servicio-clases:8080/interno/temas/12/estado</code> → la clase pasa a BORRADOR.</li>
+            <li><strong>Frontend → Java</strong>: la profesora revisa y pulsa <em>Publicar</em> → <strong>Java → Node</strong> <code>/interno/asignar</code>.</li>
+            <li><strong>Node → Python</strong>: <code>GET servicio-auth:8000/usuarios?rol=estudiante</code> para saber a quién asignar.</li>
+            <li><strong>Node → Go</strong>: <code>POST servicio-notificaciones:8080/interno/notificar</code> por cada estudiante → campanita + correo.</li>
+            <li>Cuando un estudiante entrega, <strong>Node → Python</strong> busca a la profesora y <strong>Node → Go</strong> le avisa.</li>
+            <li>Cuando la profesora crea un estudiante, <strong>Python → Node</strong> le asigna preguntas de las clases ya publicadas y <strong>Python → Go</strong> le da la bienvenida.</li>
+          </ol>
+          <p>Además los 4 servicios validan el mismo <strong>JWT</strong> (firmado con <code>SECRET_KEY</code>) sin tener que consultar al servicio de auth en cada petición.</p>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="bloque" id="seguridad">
+          <h2><span class="n">10</span>Login y claves encriptadas</h2>
+          <div class="qcp">
+            <div class="card"><h4>bcrypt</h4><p>La clave se guarda como hash con sal aleatoria. Ni la base de datos ni la profesora pueden leerla; solo se puede verificar.</p></div>
+            <div class="card"><h4>JWT</h4><p>Al iniciar sesión Python firma un token con id, nombre y rol, válido 12 horas. El frontend lo envía en <code>Authorization: Bearer</code>.</p></div>
+            <div class="card"><h4>Roles</h4><p>Solo la profesora crea usuarios, sube presentaciones y ve respuestas. Cada servicio verifica el rol del token.</p></div>
+          </div>
+<pre class="code"><span class="k">def</span> hash_password(password):
+    <span class="k">return</span> bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+<span class="c"># en la BD queda algo como:  $2b$12$Qd0r6r0Yb3m1Q8m5v2kF1eZ9...</span></pre>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="bloque" id="ia">
+          <h2><span class="n">11</span>Inteligencia Artificial</h2>
+          <div class="qcp">
+            <div class="card"><h4>Explicar diapositivas</h4><p>Se extrae el texto de cada diapositiva (pdf-parse / lectura del XML del PPTX) y la IA redacta una explicación de 60–140 palabras por diapositiva.</p></div>
+            <div class="card"><h4>5 preguntas distintas</h4><p>La IA genera un banco de 5 × N preguntas, se eliminan duplicados y se reparten. Las ya usadas se guardan para no repetirlas con estudiantes nuevos.</p></div>
+            <div class="card"><h4>Modo demo</h4><p>Si no hay API key, el sistema sigue funcionando con explicaciones y preguntas por plantillas, para que siempre se pueda evaluar.</p></div>
+          </div>
+          <p>El proveedor se elige en el <code>.env</code> con <code>IA_PROVIDER</code>: <strong>NVIDIA NIM</strong> (key gratuita en build.nvidia.com, API compatible con OpenAI) o <strong>Google Gemini</strong>.
+            La profesora siempre puede corregir lo que escribió la IA antes de publicar.</p>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="bloque" id="ejecutar">
+          <h2><span class="n">12</span>Cómo ejecutarlo</h2>
+<pre class="code">git clone &lt;repo&gt; &amp;&amp; cd proyecto-final-felix-arocha
+cp .env.example .env          <span class="c"># poner NVIDIA_API_KEY (opcional) y cambiar claves</span>
+docker compose up --build
+
+<span class="c"># Plataforma:    http://localhost</span>
+<span class="c"># Correos:       http://localhost:8025   (Mailpit)</span>
+<span class="c"># Profesora:     ADMIN_EMAIL / ADMIN_PASSWORD del .env</span></pre>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script>
+    const servicios = [
+      ['auth', 'Python'], ['ia', 'Node.js'], ['clases', 'Java'], ['notificaciones', 'Go'],
+    ];
+    const salud = document.getElementById('salud');
+    salud.innerHTML = servicios.map(([s]) => `<div class="card" id="s-${s}"><span class="punto"></span><strong>${s}</strong><div class="muted" style="font-size:.85rem">consultando...</div></div>`).join('');
+    servicios.forEach(async ([s, lang]) => {
+      const el = document.getElementById(`s-${s}`);
+      const t0 = performance.now();
+      try {
+        const r = await fetch(`/api/${s}/health`);
+        const d = await r.json();
+        const ms = Math.round(performance.now() - t0);
+        el.innerHTML = `<span class="punto ok"></span><strong>${esc(s)}</strong> <span class="muted" style="font-size:.8rem">${ms} ms</span>
+          <div style="font-size:.85rem;margin-top:.3rem">${esc(d.lenguaje)}<br>${esc(d.orm)} → ${esc(d.bd)}${d.ia ? `<br>IA: ${esc(d.ia)}` : ''}</div>`;
+      } catch {
+        el.innerHTML = `<span class="punto err"></span><strong>${esc(s)}</strong> (${lang})<div class="muted" style="font-size:.85rem">sin respuesta</div>`;
+      }
+    });
+  </script>
+</body>
+</html>
