@@ -1,5 +1,5 @@
 # Aula Virtual LPR — un solo comando:  docker compose up --build
-# Entrada unica: http://localhost  (Nginx como API Gateway)
+# Entrada unica: https://localhost  (Nginx como API Gateway; el puerto 80 redirige a HTTPS)
 
 services:
   # ------------------------------------------------------------ Bases de datos
@@ -95,7 +95,7 @@ services:
     build:
       context: .
       dockerfile: nginx/Dockerfile  # nginx:alpine + nginx.conf + frontend/
-    ports: ["80:80"]
+    ports: ["80:80", "443:443"]   # 80 redirige a 443 (HTTPS)
     depends_on:
       servicio-auth:
         condition: service_healthy
