@@ -1,5 +1,5 @@
 /*
- * Microservicio de IA — Node.js + Express + Mongoose + MongoDB + Google Gemini
+ * Microservicio de IA — Node.js + Express + Mongoose + MongoDB + IA (NVIDIA NIM o Google Gemini)
  *
  * Gateway: http://localhost/api/ia/...
  *   GET  /clases/:id/contenido        -> explicacion de cada diapositiva
@@ -23,7 +23,7 @@ const mongoose = require('mongoose');
 
 const { Contenido, Asignacion } = require('./modelos');
 const { extraerDiapositivas } = require('./extraer');
-const gemini = require('./gemini');
+const ia = require('./ia');
 const { explicarDemo, preguntasDemo, normalizar, barajar } = require('./demo');
 const { usuariosPorRol, actualizarEstadoClase, notificar } = require('./servicios');
 
@@ -58,7 +58,7 @@ const h = (fn) => (req, res, next) => fn(req, res, next).catch((e) => {
 
 // ------------------------------------------------------------------ logica de IA
 
-/** Extrae el texto, pide a Gemini (o al modo demo) la explicacion y guarda en Mongo. */
+/** Extrae el texto, pide a la IA (o al modo demo) la explicacion y guarda en Mongo. */
 async function procesar({ claseId, titulo, descripcion, nombreArchivo, tipo, base64 }) {
   try {
     const buffer = Buffer.from(base64, 'base64');
@@ -67,9 +67,9 @@ async function procesar({ claseId, titulo, descripcion, nombreArchivo, tipo, bas
 
     let resultado;
     let modo = 'demo';
-    if (gemini.activo()) {
-      resultado = await gemini.explicarPresentacion({ titulo, descripcion, diapositivas, buffer, tipo });
-      modo = 'gemini';
+    if (ia.activo()) {
+      resultado = await ia.explicarPresentacion({ titulo, descripcion, diapositivas });
+      modo = 'ia';
     } else {
       resultado = explicarDemo(diapositivas, titulo);
     }
@@ -88,7 +88,7 @@ async function procesar({ claseId, titulo, descripcion, nombreArchivo, tipo, bas
       estado: 'listo', error: null, resumen: resultado.resumen, diapositivas: final,
     });
     await actualizarEstadoClase(claseId, 'BORRADOR',
-      `La IA (${modo === 'gemini' ? gemini.MODELO : 'modo demo'}) explico ${final.length} diapositivas. Revisalas y publica la clase.`);
+      `La IA (${modo === 'ia' ? ia.MODELO : 'modo demo'}) explico ${final.length} diapositivas. Revisalas y publica la clase.`);
   } catch (e) {
     console.error('Error procesando clase', claseId, e);
     await Contenido.updateOne({ claseId }, { estado: 'error', error: e.message });
@@ -108,16 +108,17 @@ async function preguntasNuevas(contenido, cantidad) {
     }
   };
 
-  if (gemini.activo()) {
-    for (let intento = 0; intento < 3 && nuevas.length < cantidad; intento++) {
+  if (ia.activo()) {
+    const intentos = Math.ceil(cantidad / 35) + 2;
+    for (let intento = 0; intento < intentos && nuevas.length < cantidad; intento++) {
       try {
         const faltan = cantidad - nuevas.length;
-        agregar(await gemini.generarPreguntas({
+        agregar(await ia.generarPreguntas({
           titulo: contenido.titulo, resumen: contenido.resumen, diapositivas: contenido.diapositivas,
           cantidad: faltan + 3, evitar: [...usadas, ...nuevas].slice(-150),
         }));
       } catch (e) {
-        console.error('Gemini fallo generando preguntas:', e.message);
+        console.error('La IA fallo generando preguntas:', e.message);
         break;
       }
     }
@@ -205,7 +206,7 @@ app.delete('/interno/clases/:id', soloInterno, h(async (req, res) => {
 // ------------------------------------------------------------------ endpoints publicos
 app.get('/health', (req, res) => res.json({
   servicio: 'ia', lenguaje: 'Node.js / Express', orm: 'Mongoose', bd: 'MongoDB',
-  ia: gemini.activo() ? `Gemini (${gemini.MODELO})` : 'modo demo (sin GEMINI_API_KEY)',
+  ia: ia.activo() ? ia.MODELO : 'modo demo (sin API key)',
   estado: mongoose.connection.readyState === 1 ? 'ok' : 'sin-bd',
 }));
 
@@ -232,13 +233,13 @@ app.put('/clases/:id/contenido', conToken, soloProfesora, h(async (req, res) => 
 app.post('/clases/:id/regenerar', conToken, soloProfesora, h(async (req, res) => {
   const c = await Contenido.findOne({ claseId: Number(req.params.id) });
   if (!c?.diapositivas?.length) return res.status(404).json({ detail: 'No hay diapositivas para regenerar' });
-  const resultado = gemini.activo()
-    ? await gemini.explicarPresentacion({ titulo: c.titulo, descripcion: c.descripcion, diapositivas: c.diapositivas, buffer: Buffer.alloc(0), tipo: 'texto' })
+  const resultado = ia.activo()
+    ? await ia.explicarPresentacion({ titulo: c.titulo, descripcion: c.descripcion, diapositivas: c.diapositivas })
     : explicarDemo(c.diapositivas, c.titulo);
   const porNumero = new Map(resultado.diapositivas.map((d) => [Number(d.n), d]));
   c.diapositivas.forEach((d) => { if (porNumero.has(d.n)) d.explicacion = porNumero.get(d.n).explicacion; });
   c.resumen = resultado.resumen;
-  c.modo = gemini.activo() ? 'gemini' : 'demo';
+  c.modo = ia.activo() ? 'ia' : 'demo';
   await c.save();
   res.json(c);
 }));
@@ -294,6 +295,6 @@ const PORT = process.env.PORT_IA || 3000;
 mongoose.connect(process.env.MONGO_URL)
   .then(() => {
     console.log('Conectado a MongoDB');
-    app.listen(PORT, () => console.log(`servicio-ia escuchando en :${PORT} (${gemini.activo() ? 'Gemini' : 'modo demo'})`));
+    app.listen(PORT, () => console.log(`servicio-ia escuchando en :${PORT} (${ia.activo() ? ia.MODELO : 'modo demo'})`));
   })
   .catch((e) => { console.error('No se pudo conectar a MongoDB', e); process.exit(1); });

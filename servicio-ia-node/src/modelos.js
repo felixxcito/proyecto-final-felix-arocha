@@ -18,7 +18,7 @@ const contenidoSchema = new mongoose.Schema({
   tipo: String,
   estado: { type: String, enum: ['procesando', 'listo', 'error'], default: 'procesando' },
   error: String,
-  modo: { type: String, enum: ['gemini', 'demo'] },
+  modo: { type: String, enum: ['ia', 'demo'] },
   resumen: String,
   diapositivas: [diapositivaSchema],
   publicado: { type: Boolean, default: false },

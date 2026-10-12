@@ -1,7 +1,7 @@
 // "Modo demo": cuando no hay GEMINI_API_KEY el sistema sigue funcionando
 // con contenido generado por plantillas a partir del texto de las diapositivas.
 
-const AVISO = 'Contenido generado en modo demo. Configura GEMINI_API_KEY en el .env para que la IA redacte la explicacion.';
+const AVISO = 'Contenido generado en modo demo. Configura NVIDIA_API_KEY (o GEMINI_API_KEY) en el .env para que la IA redacte la explicacion.';
 
 function explicarDemo(diapositivas, titulo) {
   return {
