@@ -8,7 +8,8 @@ const NVIDIA_MODEL = process.env.NVIDIA_MODEL || 'google/gemma-4-31b-it';
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
-const DIAPOS_POR_LLAMADA = 8; // se procesa por partes para no pasar el limite de tokens de respuesta
+const DIAPOS_POR_LLAMADA = 4; // se procesa por partes para no pasar el limite de tokens de respuesta
+const LLAMADAS_EN_PARALELO = 3;
 
 const activo = () => Boolean(PROVEEDOR === 'gemini' ? GEMINI_KEY : NVIDIA_KEY);
 const MODELO = PROVEEDOR === 'gemini' ? `Gemini ${GEMINI_MODEL}` : `NVIDIA ${NVIDIA_MODEL}`;
@@ -43,20 +44,41 @@ async function nvidia(prompt, temperatura) {
         messages: [{ role: 'system', content: SISTEMA }, { role: 'user', content: prompt }],
         temperature: temperatura,
         max_tokens: 8192,
+        stream: true, // la respuesta llega por partes: evita que la conexion se corte en respuestas largas
       }),
     });
-    const data = await res.json().catch(() => ({}));
     if (res.status === 404 || res.status === 410) {
       ultimoError = new Error(`NVIDIA ${res.status}: el modelo ${modelo} no esta disponible`);
       console.warn(`${ultimoError.message}, probando el siguiente modelo...`);
       continue;
     }
-    if (!res.ok) throw new Error(`NVIDIA ${res.status}: ${data.detail || data.error?.message || JSON.stringify(data)}`);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(`NVIDIA ${res.status}: ${data.detail || data.error?.message || JSON.stringify(data)}`);
+    }
     if (modelo !== nvidiaModeloActual) console.warn(`Usando el modelo de respaldo ${modelo}`);
     nvidiaModeloActual = modelo;
-    return data.choices?.[0]?.message?.content || '';
+    return leerStream(res);
   }
   throw ultimoError;
+}
+
+/** Junta los fragmentos "data: {...}" del stream (Server-Sent Events, formato OpenAI). */
+async function leerStream(res) {
+  const decoder = new TextDecoder();
+  let pendiente = '';
+  let texto = '';
+  for await (const trozo of res.body) {
+    pendiente += decoder.decode(trozo, { stream: true });
+    const lineas = pendiente.split('\n');
+    pendiente = lineas.pop();
+    for (const linea of lineas) {
+      const datos = linea.replace(/^data:\s*/, '').trim();
+      if (!linea.startsWith('data:') || !datos || datos === '[DONE]') continue;
+      try { texto += JSON.parse(datos).choices?.[0]?.delta?.content || ''; } catch { /* linea incompleta */ }
+    }
+  }
+  return texto;
 }
 
 async function gemini(prompt, temperatura) {
@@ -88,9 +110,10 @@ async function pedirJSON(prompt, temperatura = 0.5) {
 }
 
 async function explicarPresentacion({ titulo, descripcion, diapositivas }) {
-  const resultado = [];
-  for (let i = 0; i < diapositivas.length; i += DIAPOS_POR_LLAMADA) {
-    const grupo = diapositivas.slice(i, i + DIAPOS_POR_LLAMADA);
+  const grupos = [];
+  for (let i = 0; i < diapositivas.length; i += DIAPOS_POR_LLAMADA) grupos.push(diapositivas.slice(i, i + DIAPOS_POR_LLAMADA));
+
+  const explicarGrupo = async (grupo) => {
     const texto = grupo.map((d) => `--- Diapositiva ${d.n} ---\n${d.texto || '(sin texto, diapositiva visual)'}`).join('\n\n');
     const r = await pedirJSON(`La profesora subio la presentacion de la clase "${titulo}". ${descripcion ? `Descripcion: ${descripcion}` : ''}
 Para CADA una de estas ${grupo.length} diapositivas escribe una explicacion de 60 a 140 palabras que desarrolle lo
@@ -101,7 +124,14 @@ Formato de respuesta:
 {"diapositivas":[{"n":1,"titulo":"titulo corto","explicacion":"..."}]}
 
 ${texto}`, 0.4);
-    resultado.push(...(r.diapositivas || []));
+    return r.diapositivas || [];
+  };
+
+  // Varios grupos a la vez para que una presentacion larga no tarde demasiado
+  const resultado = [];
+  for (let i = 0; i < grupos.length; i += LLAMADAS_EN_PARALELO) {
+    const tandas = await Promise.all(grupos.slice(i, i + LLAMADAS_EN_PARALELO).map(explicarGrupo));
+    tandas.forEach((t) => resultado.push(...t));
   }
 
   const r = await pedirJSON(`Escribe un resumen general (3 a 5 oraciones) de la clase "${titulo}" a partir de estas explicaciones.
