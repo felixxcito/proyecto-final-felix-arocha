@@ -1,0 +1,5 @@
+# Contexto del gateway (raiz): solo necesita nginx/ y frontend/
+servicio-*
+docs
+.git
+.env

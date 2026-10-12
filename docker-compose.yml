@@ -4,14 +4,13 @@
 services:
   # ------------------------------------------------------------ Bases de datos
   postgres:
-    image: postgres:15-alpine
+    build: ./postgres            # postgres:15-alpine + init.sql (una BD por servicio)
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASS}
       POSTGRES_DB: ${DB_NAME}
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks: [backend]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
@@ -93,11 +92,10 @@ services:
 
   # ------------------------------------------------------------ API Gateway + Frontend
   gateway:
-    image: nginx:1.27-alpine
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile  # nginx:alpine + nginx.conf + frontend/
     ports: ["80:80"]
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./frontend:/usr/share/nginx/html:ro
     depends_on:
       servicio-auth:
         condition: service_healthy
