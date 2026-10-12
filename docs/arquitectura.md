@@ -22,7 +22,7 @@ La Clase 12 pide un sistema web con arquitectura de microservicios:
 | `servicio-clases` | Java · Spring Boot · Spring Data JPA | PostgreSQL `clases_db` | Temas por semana, subida de presentaciones, publicación | Entidades con estados (`SIN_MATERIAL → PROCESANDO → BORRADOR → PUBLICADA`). Spring Data genera el CRUD y Spring maneja bien la subida de archivos. |
 | `servicio-ia` | Node.js · Express · Mongoose | MongoDB `aula_ia` | Leer diapositivas, llamar a la IA, preguntas y respuestas | El contenido tiene forma variable (N diapositivas, preguntas anidadas por estudiante): encaja natural en documentos. Node es eficiente esperando respuestas HTTP lentas como las de la IA. |
 | `servicio-notificaciones` | Go · Gin · GORM | PostgreSQL `notif_db` | Campanita y correos | Servicio pequeño y muy concurrente; las goroutines envían correos sin bloquear al servicio que pidió la notificación. |
-| `gateway` | Nginx | — | Punto de entrada único (`:80`), sirve el frontend | El navegador no conoce puertos internos, no hay problemas de CORS y se cumple el bonus. |
+| `gateway` | Nginx | — | Punto de entrada único (HTTPS en `:443`; el `:80` redirige), sirve el frontend | El navegador no conoce puertos internos, no hay problemas de CORS y se cumple el bonus. |
 
 **Una base de datos por servicio** (las tres SQL viven en el mismo contenedor de Postgres, pero separadas): ningún servicio lee las tablas de otro; si necesita un dato, lo pide por HTTP.
 
@@ -55,3 +55,4 @@ La Clase 12 pide un sistema web con arquitectura de microservicios:
 5. **Chat por diapositiva.** El servicio de IA responde dudas con el contexto de la diapositiva actual y guarda cada consulta en MongoDB para que la profesora vea qué no se entendió.
 6. **Clases privadas y preguntas configurables.** La profesora puede pasar lista y dar acceso solo a los presentes, y elegir cuántas preguntas recibe cada estudiante (1 a 20).
 7. **Materias y secciones.** Viven en el servicio de clases (`@OneToMany`, `@ManyToOne`, `@ElementCollection`). Java es la única fuente de verdad sobre quién puede ver cada clase: calcula la lista `permitidos` (sección + asistencia) y se la envía a Node, en vez de que Node consulte secciones por su cuenta.
+8. **HTTPS forzado en el gateway.** Nginx escucha en el 443 con un certificado autofirmado generado al construir la imagen, y el puerto 80 redirige con un 301. Así el token JWT y las claves ya no viajan en texto plano entre el navegador y el gateway. Costo: el navegador pide aceptar el certificado la primera vez. No activamos HSTS para no obligar al navegador a usar HTTPS en todo `localhost` (otros proyectos locales usan HTTP). Dentro de la red de Docker los servicios siguen hablando HTTP: esa red es privada y el gateway termina el TLS.

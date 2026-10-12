@@ -18,7 +18,7 @@ Plataforma web para la materia *Lenguajes de Programación* construida con **4 m
 - La profesora ve en **"Dudas a la IA"** qué preguntó cada alumno, en qué diapositiva y qué le respondió la IA, además de las diapositivas con más dudas.
 - Los estudiantes estudian la clase, **responden** y entregan. La profesora ve todas las respuestas.
 - **Notificaciones** con campanita en la web y **por correo** (clase nueva, preguntas asignadas, respuestas entregadas, bienvenida).
-- La página **"Cómo lo construimos"** (`http://localhost/como-lo-hicimos.html`) explica cada requisito de la Clase 12 con el código real y muestra el estado de los servicios en vivo.
+- La página **"Cómo lo construimos"** (`https://localhost/como-lo-hicimos.html`) explica cada requisito de la Clase 12 con el código real y muestra el estado de los servicios en vivo.
 
 ## Arquitectura
 
@@ -28,9 +28,9 @@ Plataforma web para la materia *Lenguajes de Programación* construida con **4 m
                          ┌──────────────────────────┐
                          │   Navegador (Frontend)   │
                          └────────────┬─────────────┘
-                                      │ http://localhost
+                                      │ https://localhost
                          ┌────────────▼─────────────┐
-                         │  Nginx — API Gateway :80 │  sirve frontend/ y enruta /api/*
+                         │ Nginx — API Gateway :443 │  HTTPS; sirve frontend/ y enruta /api/*
                          └──┬────────┬────────┬─────┘
           /api/auth/        │        │        │        /api/notificaciones/
         ┌───────────────────┘   /api/ia/  /api/clases/ └──────────────────┐
@@ -61,7 +61,7 @@ Redes de Docker: `backend` (bases de datos, Mailpit y servicios) y `frontend` (g
 | `servicio-ia` | Node.js 20 · Express | 8002 → 3000 | MongoDB `aula_ia` · Mongoose | `GET/PUT /api/ia/clases/:id/contenido`, `GET/POST /api/ia/clases/:id/consultas`, `GET/PUT /api/ia/clases/:id/mis-preguntas`, `GET /api/ia/clases/:id/respuestas` |
 | `servicio-clases` | Java 21 · Spring Boot 3 | 8003 → 8080 | PostgreSQL `clases_db` · Spring Data JPA | `GET/POST/PUT/DELETE /api/clases/materias`, `POST /api/clases/materias/:id/secciones`, `PUT /api/clases/secciones/:id/estudiantes`, `GET/POST/PUT/DELETE /api/clases/temas`, `POST /api/clases/temas/:id/presentacion`, `POST /api/clases/temas/:id/publicar`, `PUT /api/clases/temas/:id/configuracion`, `GET /api/clases/temas/:id/diapositivas.pdf` |
 | `servicio-notificaciones` | Go 1.25 · Gin | 8004 → 8080 | PostgreSQL `notif_db` · GORM | `GET /api/notificaciones/`, `PATCH /api/notificaciones/:id/leida`, `POST /api/notificaciones/leer-todas` |
-| `gateway` | Nginx | **80** → 80 | — | Frontend + `/api/*` |
+| `gateway` | Nginx | **443** → 443 (el 80 redirige a HTTPS) | — | Frontend + `/api/*` |
 | `mailpit` | — | 8025 → 8025 | — | Bandeja de correos de prueba |
 
 Todos exponen `GET /health`.
@@ -99,13 +99,15 @@ La primera vez tarda unos minutos (Maven descarga dependencias de Java). Cuando 
 
 | Qué | URL |
 |---|---|
-| Plataforma | http://localhost |
-| Cómo lo construimos + estado en vivo | http://localhost/como-lo-hicimos.html |
+| Plataforma | https://localhost |
+| Cómo lo construimos + estado en vivo | https://localhost/como-lo-hicimos.html |
 | Bandeja de correos (Mailpit) | http://localhost:8025 |
 
 **Usuario profesora:** el que esté en `ADMIN_EMAIL` / `ADMIN_PASSWORD` del `.env` (por defecto `profesora@ujap.edu.ve` / `Profe2026!`).
 
-> Si el puerto 80 está ocupado en su computadora, cambie `"80:80"` por `"8080:80"` en el servicio `gateway` del `docker-compose.yml` y entre a http://localhost:8080 (ajuste también `PUBLIC_URL`).
+> **HTTPS y certificado.** El gateway sirve la plataforma por HTTPS (puerto 443) con un certificado **autofirmado** que se genera al construir la imagen, y el puerto 80 redirige a HTTPS. La primera vez el navegador mostrará *"Tu conexión no es privada"*: pulsa **Avanzado → Continuar a localhost** (es normal con certificados locales; en producción se usaría uno real, por ejemplo de Let's Encrypt). Con `curl` usa la opción `-k`.
+>
+> Si el puerto 80 o el 443 están ocupados en su computadora, cambie `"80:80", "443:443"` por `"8080:80", "8443:443"` en el servicio `gateway` del `docker-compose.yml` y entre a https://localhost:8443 (ajuste también `PUBLIC_URL`).
 
 ## Configuración (`.env`)
 
@@ -218,10 +220,10 @@ Estado de los 4 microservicios consultado en vivo a través del gateway (`/api/<
 Las mismas respuestas desde la terminal:
 
 ```bash
-curl http://localhost/api/auth/health
-curl http://localhost/api/ia/health
-curl http://localhost/api/clases/health
-curl http://localhost/api/notificaciones/health
+curl -k https://localhost/api/auth/health
+curl -k https://localhost/api/ia/health
+curl -k https://localhost/api/clases/health
+curl -k https://localhost/api/notificaciones/health
 ```
 
 ![Respuestas de /health en la terminal](docs/capturas/12-health-terminal.png)
