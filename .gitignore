@@ -1,0 +1,20 @@
+# Variables de entorno con credenciales
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Node
+node_modules/
+
+# Java
+target/
+*.class
+
+# Go
+servicio-notificaciones-go/notificaciones
+
+# Sistema
+.DS_Store
