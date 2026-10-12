@@ -1,10 +1,11 @@
 # ---- Etapa 1: compilar
-FROM golang:1.23-alpine AS build
+FROM golang:1.25-alpine AS build
 WORKDIR /src
-COPY go.mod ./
+# Primero solo go.mod/go.sum: Docker cachea las dependencias si no cambian
+COPY go.mod go.sum ./
+RUN go mod download
 COPY *.go ./
-# go mod tidy descarga dependencias y genera go.sum
-RUN go mod tidy && CGO_ENABLED=0 go build -o /notificaciones .
+RUN CGO_ENABLED=0 go build -o /notificaciones .
 
 # ---- Etapa 2: imagen final liviana (~20 MB)
 FROM alpine:3.20
