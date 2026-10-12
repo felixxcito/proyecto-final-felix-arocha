@@ -5,7 +5,7 @@ Gateway: http://localhost/api/auth/...
   POST   /login               -> token JWT
   GET    /me                  -> datos del usuario del token
   GET    /usuarios            -> lista (profesora o servicio interno), filtro ?rol=
-  POST   /usuarios            -> crear usuario (solo profesora)
+  POST   /usuarios            -> crear usuario (solo profesora), opcionalmente inscrito en secciones
   PATCH  /usuarios/{id}       -> editar / activar / cambiar clave
   DELETE /usuarios/{id}       -> eliminar
 """
@@ -32,7 +32,7 @@ from .security import (
 log = logging.getLogger("uvicorn.error")
 app = FastAPI(title="Servicio Auth (Python)")
 
-IA_URL = "http://servicio-ia:3000"
+CLASES_URL = "http://servicio-clases:8080"
 NOTIF_URL = "http://servicio-notificaciones:8080"
 PUBLIC_URL = os.getenv("PUBLIC_URL", "http://localhost")
 
@@ -65,6 +65,7 @@ class UsuarioIn(BaseModel):
     email: str = Field(pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
     password: str = Field(min_length=6)
     rol: str = Field(default="estudiante", pattern="^(estudiante|profesora)$")
+    secciones: list[int] = []  # secciones (servicio de clases) donde se inscribe al estudiante
 
 
 class UsuarioPatch(BaseModel):
@@ -80,13 +81,15 @@ def a_json(u: Usuario) -> dict:
 
 
 # ----------------------------------------------------------------- comunicacion con otros servicios
-def avisar_estudiante_nuevo(u: dict):
-    """Python -> Node (asignar preguntas de clases ya publicadas) y Python -> Go (correo de bienvenida)."""
+def avisar_estudiante_nuevo(u: dict, secciones: list[int]):
+    """Python -> Java (inscribir en sus secciones; Java -> Node le asigna preguntas) y Python -> Go (bienvenida)."""
     headers = {"X-Internal-Token": INTERNAL_TOKEN}
-    try:
-        httpx.post(f"{IA_URL}/interno/estudiante-nuevo", json=u, headers=headers, timeout=120)
-    except httpx.HTTPError as e:
-        log.warning("No se pudo avisar a servicio-ia: %s", e)
+    if secciones:
+        try:
+            httpx.post(f"{CLASES_URL}/interno/inscribir", headers=headers, timeout=60,
+                       json={"estudianteId": u["id"], "secciones": secciones})
+        except httpx.HTTPError as e:
+            log.warning("No se pudo inscribir en servicio-clases: %s", e)
     try:
         httpx.post(f"{NOTIF_URL}/interno/notificar", headers=headers, timeout=10, json={
             "usuarioId": u["id"], "email": u["email"], "nombre": u["nombre"],
@@ -144,7 +147,7 @@ def crear(datos: UsuarioIn, tareas: BackgroundTasks, _=Depends(solo_profesora),
     db.commit()
     db.refresh(u)
     if u.rol == "estudiante":
-        tareas.add_task(avisar_estudiante_nuevo, a_json(u))
+        tareas.add_task(avisar_estudiante_nuevo, a_json(u), datos.secciones)
     return a_json(u)
 
 
@@ -174,3 +177,8 @@ def eliminar(uid: int, user=Depends(solo_profesora), db: Session = Depends(get_d
         raise HTTPException(400, "No puedes eliminar tu propia cuenta")
     db.delete(u)
     db.commit()
+    # Python -> Java: sacarlo de las secciones donde estaba inscrito
+    try:
+        httpx.delete(f"{CLASES_URL}/interno/estudiantes/{uid}", headers={"X-Internal-Token": INTERNAL_TOKEN}, timeout=10)
+    except httpx.HTTPError as e:
+        log.warning("No se pudo actualizar servicio-clases: %s", e)
