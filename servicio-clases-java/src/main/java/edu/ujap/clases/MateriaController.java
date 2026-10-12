@@ -1,0 +1,202 @@
+package edu.ujap.clases;
+
+import io.jsonwebtoken.Claims;
+import java.util.*;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+
+/**
+ * Materias y secciones — Java + Spring Data JPA (@OneToMany / @ManyToOne / @ElementCollection)
+ *
+ * Gateway: http://localhost/api/clases/...
+ *   GET    /materias                       -> profesora: todas; estudiante: solo donde esta inscrito
+ *   POST   /materias                       -> crear materia
+ *   PUT    /materias/{id}                  -> editar
+ *   DELETE /materias/{id}                  -> eliminar (si no tiene temas)
+ *   POST   /materias/{id}/secciones        -> crear seccion
+ *   PUT    /secciones/{id}                 -> editar seccion
+ *   DELETE /secciones/{id}                 -> eliminar seccion
+ *   PUT    /secciones/{id}/estudiantes     -> inscribir estudiantes (reemplaza la lista)
+ * Internos (Python -> Java):
+ *   POST   /interno/inscribir              -> inscribir un estudiante recien creado
+ *   DELETE /interno/estudiantes/{id}       -> sacar a un estudiante eliminado de sus secciones
+ */
+@RestController
+public class MateriaController {
+  private final MateriaRepo materias;
+  private final SeccionRepo secciones;
+  private final ClaseRepo clases;
+  private final Auth auth;
+  private final Acceso acceso;
+
+  public MateriaController(MateriaRepo materias, SeccionRepo secciones, ClaseRepo clases, Auth auth, Acceso acceso) {
+    this.materias = materias;
+    this.secciones = secciones;
+    this.clases = clases;
+    this.auth = auth;
+    this.acceso = acceso;
+  }
+
+  record MateriaIn(String nombre, String codigo, String descripcion) {}
+  record SeccionIn(String nombre, String horario) {}
+  record EstudiantesIn(List<Long> estudiantes) {}
+  record InscripcionIn(Long estudianteId, List<Long> secciones) {}
+
+  // ----------------------------------------------------------------- materias
+  @GetMapping("/materias")
+  public List<Map<String, Object>> listar(@RequestHeader(value = "Authorization", required = false) String h) {
+    Claims u = auth.usuario(h);
+    boolean profe = auth.esProfesora(u);
+    Long uid = Long.valueOf(u.getSubject());
+    List<Map<String, Object>> resultado = new ArrayList<>();
+    for (Materia m : materias.findAllByOrderByNombreAsc()) {
+      // El estudiante solo ve sus secciones y no ve la lista de compañeros
+      List<Map<String, Object>> secs = m.getSecciones().stream()
+          .filter(s -> profe || s.getEstudiantes().contains(uid))
+          .map(s -> {
+            Map<String, Object> x = new LinkedHashMap<>();
+            x.put("id", s.getId());
+            x.put("nombre", s.getNombre());
+            x.put("horario", s.getHorario());
+            x.put("materiaId", m.getId());
+            x.put("estudiantes", profe ? s.getEstudiantes() : List.of());
+            return x;
+          }).toList();
+      if (!profe && secs.isEmpty()) continue;
+      Map<String, Object> x = new LinkedHashMap<>();
+      x.put("id", m.getId());
+      x.put("nombre", m.getNombre());
+      x.put("codigo", m.getCodigo());
+      x.put("descripcion", m.getDescripcion());
+      x.put("secciones", secs);
+      resultado.add(x);
+    }
+    return resultado;
+  }
+
+  @PostMapping("/materias")
+  public ResponseEntity<Materia> crear(@RequestBody MateriaIn in, @RequestHeader(value = "Authorization", required = false) String h) {
+    auth.profesora(h);
+    Materia m = new Materia();
+    aplicar(m, in);
+    return ResponseEntity.status(201).body(materias.save(m));
+  }
+
+  @PutMapping("/materias/{id}")
+  public Materia editar(@PathVariable Long id, @RequestBody MateriaIn in,
+      @RequestHeader(value = "Authorization", required = false) String h) {
+    auth.profesora(h);
+    Materia m = materia(id);
+    aplicar(m, in);
+    return materias.save(m);
+  }
+
+  @DeleteMapping("/materias/{id}")
+  public ResponseEntity<Void> eliminar(@PathVariable Long id, @RequestHeader(value = "Authorization", required = false) String h) {
+    auth.profesora(h);
+    if (clases.existsByMateriaId(id))
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "La materia tiene temas: muevelos o eliminalos primero");
+    materias.delete(materia(id));
+    return ResponseEntity.noContent().build();
+  }
+
+  // ----------------------------------------------------------------- secciones
+  @PostMapping("/materias/{id}/secciones")
+  public ResponseEntity<Seccion> crearSeccion(@PathVariable Long id, @RequestBody SeccionIn in,
+      @RequestHeader(value = "Authorization", required = false) String h) {
+    auth.profesora(h);
+    Seccion s = new Seccion();
+    s.setMateria(materia(id));
+    aplicar(s, in);
+    return ResponseEntity.status(201).body(secciones.save(s));
+  }
+
+  @PutMapping("/secciones/{id}")
+  public Seccion editarSeccion(@PathVariable Long id, @RequestBody SeccionIn in,
+      @RequestHeader(value = "Authorization", required = false) String h) {
+    auth.profesora(h);
+    Seccion s = seccion(id);
+    aplicar(s, in);
+    return secciones.save(s);
+  }
+
+  @Transactional
+  @DeleteMapping("/secciones/{id}")
+  public ResponseEntity<Void> eliminarSeccion(@PathVariable Long id,
+      @RequestHeader(value = "Authorization", required = false) String h) {
+    auth.profesora(h);
+    Seccion s = seccion(id);
+    Materia m = s.getMateria();
+    m.getSecciones().remove(s); // orphanRemoval borra la fila al terminar la transaccion
+    secciones.flush();
+    acceso.sincronizarMateria(m.getId());
+    return ResponseEntity.noContent().build();
+  }
+
+  /** Inscribe exactamente estos estudiantes en la seccion y actualiza el acceso a las clases publicadas. */
+  @PutMapping("/secciones/{id}/estudiantes")
+  public Seccion inscribir(@PathVariable Long id, @RequestBody EstudiantesIn in,
+      @RequestHeader(value = "Authorization", required = false) String h) {
+    auth.profesora(h);
+    Seccion s = seccion(id);
+    s.setEstudiantes(new HashSet<>(Optional.ofNullable(in.estudiantes()).orElse(List.of())));
+    secciones.save(s);
+    acceso.sincronizarMateria(s.getMateriaId());
+    return s;
+  }
+
+  // ----------------------------------------------------------------- internos (Python -> Java)
+  @PostMapping("/interno/inscribir")
+  public Map<String, Object> inscribirInterno(@RequestBody InscripcionIn in,
+      @RequestHeader(value = "X-Internal-Token", required = false) String t) {
+    auth.interno(t);
+    Set<Long> materiasTocadas = new HashSet<>();
+    for (Long sid : Optional.ofNullable(in.secciones()).orElse(List.of())) {
+      secciones.findById(sid).ifPresent(s -> {
+        s.getEstudiantes().add(in.estudianteId());
+        secciones.save(s);
+        materiasTocadas.add(s.getMateriaId());
+      });
+    }
+    materiasTocadas.forEach(acceso::sincronizarMateria);
+    return Map.of("materias", materiasTocadas.size());
+  }
+
+  @DeleteMapping("/interno/estudiantes/{id}")
+  public ResponseEntity<Void> sacarEstudiante(@PathVariable Long id,
+      @RequestHeader(value = "X-Internal-Token", required = false) String t) {
+    auth.interno(t);
+    for (Seccion s : secciones.deEstudiante(id)) {
+      s.getEstudiantes().remove(id);
+      secciones.save(s);
+    }
+    return ResponseEntity.noContent().build();
+  }
+
+  // ----------------------------------------------------------------- utilidades
+  private Materia materia(Long id) {
+    return materias.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Materia no existe"));
+  }
+
+  private Seccion seccion(Long id) {
+    return secciones.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Seccion no existe"));
+  }
+
+  private void aplicar(Materia m, MateriaIn in) {
+    if (in.nombre() == null || in.nombre().isBlank())
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El nombre de la materia es obligatorio");
+    m.setNombre(in.nombre().trim());
+    m.setCodigo(in.codigo() == null ? null : in.codigo().trim());
+    m.setDescripcion(in.descripcion());
+  }
+
+  private void aplicar(Seccion s, SeccionIn in) {
+    if (in.nombre() == null || in.nombre().isBlank())
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El nombre de la seccion es obligatorio");
+    s.setNombre(in.nombre().trim());
+    s.setHorario(in.horario() == null ? null : in.horario().trim());
+  }
+}

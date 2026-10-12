@@ -18,7 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
  * Microservicio de CLASES — Java + Spring Boot + Spring Data JPA + PostgreSQL
  *
  * Gateway: http://localhost/api/clases/...
- *   GET    /temas                     -> temas de la materia
+ *   GET    /temas                     -> profesora: todos; estudiante: los de sus secciones
  *   GET    /temas/{id}
  *   POST   /temas                     -> crear tema (profesora)
  *   PUT    /temas/{id}                -> editar tema (profesora)
@@ -26,6 +26,7 @@ import org.springframework.web.server.ResponseStatusException;
  *   POST   /temas/{id}/presentacion   -> subir PDF/PPTX; se envia a servicio-ia
  *   GET    /temas/{id}/archivo        -> descargar / ver la presentacion
  *   POST   /temas/{id}/publicar       -> publicar a estudiantes (genera preguntas)
+ *   PUT    /temas/{id}/configuracion  -> privada, lista de asistencia, preguntas por estudiante
  *   PATCH  /interno/temas/{id}/estado -> servicio-ia avisa que termino de procesar
  */
 @RestController
@@ -37,18 +38,22 @@ public class ClaseController {
   private final Auth auth;
   private final IaCliente ia;
   private final Conversor conversor;
+  private final Acceso acceso;
+  private final MateriaRepo materias;
   private final Path uploads;
 
-  public ClaseController(ClaseRepo repo, Auth auth, IaCliente ia, Conversor conversor,
-      @Value("${app.uploads}") String uploads) throws IOException {
+  public ClaseController(ClaseRepo repo, Auth auth, IaCliente ia, Conversor conversor, Acceso acceso,
+      MateriaRepo materias, @Value("${app.uploads}") String uploads) throws IOException {
     this.repo = repo;
     this.auth = auth;
     this.ia = ia;
     this.conversor = conversor;
+    this.acceso = acceso;
+    this.materias = materias;
     this.uploads = Files.createDirectories(Path.of(uploads));
   }
 
-  record TemaIn(Integer semana, String titulo, String descripcion) {}
+  record TemaIn(Integer semana, String titulo, String descripcion, Long materiaId, List<Long> secciones) {}
   record EstadoIn(String estado, String mensaje) {}
   record ConfiguracionIn(Boolean privada, List<Long> asistentes, Integer preguntasPorEstudiante) {}
 
@@ -61,14 +66,20 @@ public class ClaseController {
   // ----------------------------------------------------------------- lectura
   @GetMapping("/temas")
   public List<Clase> listar(@RequestHeader(value = "Authorization", required = false) String h) {
-    auth.usuario(h);
-    return repo.findAllByOrderBySemanaAscIdAsc();
+    Claims u = auth.usuario(h);
+    List<Clase> todas = repo.findAllByOrderBySemanaAscIdAsc();
+    if (auth.esProfesora(u)) return todas;
+    Long uid = Long.valueOf(u.getSubject());
+    return todas.stream().filter(c -> acceso.estaInscrito(uid, c)).toList();
   }
 
   @GetMapping("/temas/{id}")
   public Clase obtener(@PathVariable Long id, @RequestHeader(value = "Authorization", required = false) String h) {
-    auth.usuario(h);
-    return buscar(id);
+    Claims u = auth.usuario(h);
+    Clase c = buscar(id);
+    if (!auth.esProfesora(u) && !acceso.estaInscrito(Long.valueOf(u.getSubject()), c))
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Esta clase no es de tu seccion");
+    return c;
   }
 
   /** Acepta el token por header o por ?token= (para poder abrirlo en un iframe / pestana). */
@@ -122,7 +133,9 @@ public class ClaseController {
     auth.profesora(h);
     Clase c = buscar(id);
     aplicar(c, in);
-    return repo.save(c);
+    repo.save(c);
+    if ("PUBLICADA".equals(c.getEstado())) acceso.sincronizar(c); // pudieron cambiar las secciones
+    return c;
   }
 
   @DeleteMapping("/temas/{id}")
@@ -191,14 +204,16 @@ public class ClaseController {
     Clase c = buscar(id);
     if (!"BORRADOR".equals(c.getEstado()) && !"PUBLICADA".equals(c.getEstado()))
       throw new ResponseStatusException(HttpStatus.CONFLICT, "Primero sube la presentacion y espera a que la IA termine");
+    if (c.getMateriaId() == null)
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "Asigna una materia al tema antes de publicarlo");
     String estadoAnterior = c.getEstado();
     c.setEstado("PUBLICADA");
     c.setMensajeEstado("Publicada. Generando preguntas para cada estudiante...");
     if (c.getPublicadaEn() == null) c.setPublicadaEn(Instant.now());
     repo.save(c); // se guarda antes de llamar a Node, que actualizara el mensaje al terminar
-    // Java -> Node: genera 5 preguntas distintas por estudiante y avisa (Node -> Go)
+    // Java -> Node: genera preguntas distintas para cada estudiante con acceso y les avisa (Node -> Go)
     try {
-      enviarAsignacion(c);
+      acceso.sincronizar(c);
     } catch (Exception e) {
       c.setEstado(estadoAnterior);
       c.setMensajeEstado("El servicio de IA no respondio: " + e.getMessage());
@@ -240,7 +255,7 @@ public class ClaseController {
     repo.save(c);
     if ("PUBLICADA".equals(c.getEstado())) {
       try {
-        enviarAsignacion(c);
+        acceso.sincronizar(c);
       } catch (Exception e) {
         throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Se guardo, pero el servicio de IA no respondio");
       }
@@ -248,20 +263,10 @@ public class ClaseController {
     return c;
   }
 
-  /** Java -> Node: genera las preguntas de los estudiantes con acceso que aun no tienen y les avisa (Node -> Go). */
-  private void enviarAsignacion(Clase c) {
-    ia.post("/interno/asignar", Map.of(
-        "claseId", c.getId(),
-        "titulo", c.getTitulo(),
-        "privada", c.isPrivada(),
-        "asistentes", c.getAsistentes(),
-        "preguntasPorEstudiante", c.getPreguntasPorEstudiante()));
-  }
-
   private void verificarAcceso(Claims u, Clase c) {
     if (auth.esProfesora(u)) return;
-    if (!c.visiblePara(Long.valueOf(u.getSubject())))
-      throw new ResponseStatusException(HttpStatus.FORBIDDEN, c.isPrivada() ? "Clase privada: pidele acceso a tu profesora" : "Clase no publicada");
+    if (!acceso.puedeVer(Long.valueOf(u.getSubject()), c))
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, c.isPrivada() ? "Clase privada: pidele acceso a tu profesora" : "No tienes acceso a esta clase");
   }
 
   // ----------------------------------------------------------------- utilidades
@@ -272,8 +277,12 @@ public class ClaseController {
   private void aplicar(Clase c, TemaIn in) {
     if (in.titulo() == null || in.titulo().isBlank())
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El titulo es obligatorio");
+    if (in.materiaId() == null || !materias.existsById(in.materiaId()))
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Elige la materia del tema");
     c.setSemana(in.semana());
     c.setTitulo(in.titulo().trim());
     c.setDescripcion(in.descripcion());
+    c.setMateriaId(in.materiaId());
+    c.setSecciones(new HashSet<>(Optional.ofNullable(in.secciones()).orElse(List.of())));
   }
 }

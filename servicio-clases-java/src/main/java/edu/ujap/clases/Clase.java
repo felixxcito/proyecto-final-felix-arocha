@@ -11,6 +11,15 @@ public class Clase {
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
+  /** Materia a la que pertenece el tema */
+  private Long materiaId;
+
+  /** Secciones que pueden ver la clase (vacio = todas las secciones de la materia) */
+  @ElementCollection(fetch = FetchType.EAGER)
+  @CollectionTable(name = "clase_seccion", joinColumns = @JoinColumn(name = "clase_id"))
+  @Column(name = "seccion_id")
+  private java.util.Set<Long> secciones = new java.util.HashSet<>();
+
   private Integer semana;
   private String titulo;
 
@@ -53,6 +62,10 @@ public class Clase {
   void alActualizar() { actualizadaEn = Instant.now(); }
 
   public Long getId() { return id; }
+  public Long getMateriaId() { return materiaId; }
+  public void setMateriaId(Long materiaId) { this.materiaId = materiaId; }
+  public java.util.Set<Long> getSecciones() { return secciones; }
+  public void setSecciones(java.util.Set<Long> secciones) { this.secciones = secciones; }
   public Integer getSemana() { return semana; }
   public void setSemana(Integer semana) { this.semana = semana; }
   public String getTitulo() { return titulo; }
@@ -81,11 +94,6 @@ public class Clase {
   public void setAsistentes(java.util.Set<Long> asistentes) { this.asistentes = asistentes; }
   public int getPreguntasPorEstudiante() { return preguntasPorEstudiante; }
   public void setPreguntasPorEstudiante(int n) { this.preguntasPorEstudiante = n; }
-
-  /** Un estudiante puede ver la clase si esta publicada y (no es privada o esta en la lista). */
-  public boolean visiblePara(Long estudianteId) {
-    return "PUBLICADA".equals(estado) && (!privada || asistentes.contains(estudianteId));
-  }
 
   public Instant getPublicadaEn() { return publicadaEn; }
   public void setPublicadaEn(Instant publicadaEn) { this.publicadaEn = publicadaEn; }
