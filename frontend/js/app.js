@@ -2,12 +2,12 @@
 if (!API.token) location.href = '/';
 
 const yo = API.usuario;
-const esProfe = yo?.rol === 'profesora';
+const esProfe = yo?.rol === 'profesor';
 const vista = document.getElementById('vista');
 let temporizador = null; // para refrescar mientras la IA procesa
 
 document.getElementById('nombreUsuario').textContent = yo?.nombre || '';
-document.getElementById('rolUsuario').textContent = esProfe ? 'Profesora' : 'Estudiante';
+document.getElementById('rolUsuario').textContent = esProfe ? 'Profesor' : 'Estudiante';
 
 const ESTADOS = {
   SIN_MATERIAL: ['Sin presentacion', ''],
@@ -171,7 +171,7 @@ async function vistaClase(id, tabInicial) {
   const tema = await API.get(`clases/temas/${id}`);
   if (!tengoAcceso(tema)) {
     vista.innerHTML = `<a class="btn small" href="#/clases">← Todas las clases</a>
-      <div class="card estado" style="margin-top:1rem">🔒 ${tema.privada ? 'Esta clase es privada: tu profesora te dará acceso al pasar la lista.' : 'Esta clase todavía no está publicada.'}</div>`;
+      <div class="card estado" style="margin-top:1rem">🔒 ${tema.privada ? 'Esta clase es privada: tu profesor te dará acceso al pasar la lista.' : 'Esta clase todavía no está publicada.'}</div>`;
     return;
   }
   const contenido = tema.archivoNombre ? await API.get(`ia/clases/${id}/contenido`).catch(() => null) : null;
@@ -190,7 +190,7 @@ async function vistaClase(id, tabInicial) {
         <button class="btn small" id="btnEditar">Editar</button>
         <button class="btn small danger" id="btnEliminar">Eliminar</button></div>` : ''}
     </div>
-    ${esProfe ? panelProfesora(tema, contenido) : ''}
+    ${esProfe ? panelProfesor(tema, contenido) : ''}
     <div class="tabs" id="tabs"></div>
     <div id="tabContenido"></div>`;
 
@@ -226,14 +226,14 @@ async function vistaClase(id, tabInicial) {
       toast('Tema eliminado');
       location.hash = '#/clases';
     };
-    activarPanelProfesora(tema);
+    activarPanelProfesor(tema);
   }
   // Mientras la IA procesa, se refresca cada 4 segundos
   const trabajando = tema.estado === 'PROCESANDO' || (esProfe && (tema.mensajeEstado || '').includes('Generando'));
   if (trabajando) temporizador = setTimeout(() => enClase(id) && vistaClase(id), 4000);
 }
 
-function panelProfesora(tema, contenido) {
+function panelProfesor(tema, contenido) {
   const claseEstado = { ERROR: 'err', PUBLICADA: 'ok' }[tema.estado] || '';
   const spinner = tema.estado === 'PROCESANDO' || (tema.mensajeEstado || '').includes('Generando') ? '<div class="spinner"></div>' : '';
   const modo = contenido?.modo === 'demo' ? ' <span class="badge warn">modo demo</span>' : '';
@@ -362,7 +362,7 @@ async function modalLista(tema) {
   };
 }
 
-function activarPanelProfesora(tema) {
+function activarPanelProfesor(tema) {
   document.getElementById('btnGuardarPreguntas').onclick = () => {
     const n = Number(document.getElementById('cfgPreguntas').value);
     if (!(n >= 1 && n <= 20)) return toast('Elige entre 1 y 20 preguntas', true);
@@ -474,7 +474,7 @@ async function pintarMisPreguntas(destino, id) {
     if (entregar && !confirm('Una vez entregadas no podrás modificarlas. ¿Entregar?')) return;
     try {
       await API.put(`ia/clases/${id}/mis-preguntas`, { respuestas, entregar });
-      toast(entregar ? '¡Respuestas entregadas! Tu profesora fue notificada.' : 'Borrador guardado');
+      toast(entregar ? '¡Respuestas entregadas! Tu profesor fue notificado.' : 'Borrador guardado');
       if (entregar) pintarMisPreguntas(destino, id);
     } catch (e) { toast(e.message, true); }
   };
@@ -525,7 +525,7 @@ async function pintarRespuestas(destino, id) {
   };
 }
 
-// ------------------------------------------------------------------ usuarios (profesora)
+// ------------------------------------------------------------------ usuarios (profesor)
 async function vistaUsuarios() {
   const [usuarios, materias] = await Promise.all([API.get('auth/usuarios'), Secciones.materias(true)]);
   vista.innerHTML = `
@@ -539,7 +539,7 @@ async function vistaUsuarios() {
         <div class="field"><label>Clave (mín. 6)</label>
           <div class="row"><input name="password" class="grow" style="width:auto" required minlength="6">
           <button type="button" class="btn small" id="btnGenerar">Generar</button></div></div>
-        <div class="field"><label>Rol</label><select name="rol"><option value="estudiante">Estudiante</option><option value="profesora">Profesora</option></select></div>
+        <div class="field"><label>Rol</label><select name="rol"><option value="estudiante">Estudiante</option><option value="profesor">Profesor</option></select></div>
         <div class="field" id="campoSeccion"><label>Sección</label><select name="seccion">${Secciones.opciones(materias)}</select></div>
         <button class="btn primary" style="width:100%;justify-content:center">Crear usuario</button>
         <p class="muted" style="font-size:.8rem;margin:.6rem 0 0">Anota la clave y entrégasela al estudiante. Recibirá un correo de bienvenida y, si eliges su sección, las clases ya publicadas de esa sección.</p>
@@ -550,8 +550,8 @@ async function vistaUsuarios() {
           <tbody>${usuarios.map((u) => `<tr>
             <td><strong>${esc(u.nombre)}</strong></td>
             <td>${esc(u.email)}</td>
-            <td>${u.rol === 'profesora' ? '<span class="badge info">Profesora</span>' : 'Estudiante'}</td>
-            <td style="font-size:.85rem">${u.rol === 'profesora' ? '' : (esc(Secciones.deEstudiante(materias, u.id).join(', ')) || '<span class="badge warn">Sin sección</span>')}</td>
+            <td>${u.rol === 'profesor' ? '<span class="badge info">Profesor</span>' : 'Estudiante'}</td>
+            <td style="font-size:.85rem">${u.rol === 'profesor' ? '' : (esc(Secciones.deEstudiante(materias, u.id).join(', ')) || '<span class="badge warn">Sin sección</span>')}</td>
             <td>${u.activo ? '<span class="badge ok">Activo</span>' : '<span class="badge">Inactivo</span>'}</td>
             <td><div class="row" style="justify-content:flex-end;flex-wrap:nowrap">${u.id === Number(yo.id) ? '<span class="muted">Tú</span>' : `
               <button class="btn small" data-accion="clave" data-id="${u.id}">Clave</button>
