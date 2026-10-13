@@ -105,6 +105,10 @@ class RecuperarConfirmarIn(BaseModel):
     nueva_clave: str = Field(min_length=8, max_length=72, alias="nuevaClave")
 
 
+class EstadoIn(BaseModel):
+    estado: str = Field(pattern="^(activo|desactivado)$")
+
+
 class UsuarioPatch(BaseModel):
     nombre: Optional[str] = None
     password: Optional[str] = Field(default=None, min_length=6)
@@ -389,3 +393,18 @@ def admin_usuarios(rol: Optional[str] = None, _=Depends(solo_admin), db: Session
     if rol:
         q = q.filter_by(rol=rol)
     return [a_json(u) for u in q.order_by(Usuario.rol, Usuario.nombre).all()]
+
+
+@app.patch("/admin/usuarios/{uid}")
+def admin_cambiar_estado(uid: int, datos: EstadoIn, user=Depends(solo_admin), db: Session = Depends(get_db)):
+    """Activar o desactivar una cuenta. Solo se pasa entre 'activo' y 'desactivado'."""
+    u = db.get(Usuario, uid)
+    if not u:
+        raise HTTPException(404, "Usuario no existe")
+    if u.id == int(user["sub"]):
+        raise HTTPException(400, "No puedes desactivar tu propia cuenta")
+    if u.estado in ("sin_verificar", "en_espera", "rechazado"):
+        raise HTTPException(409, "Esta cuenta aun no esta aprobada; usa la lista de espera")
+    u.estado = datos.estado
+    db.commit()
+    return a_json(u)
