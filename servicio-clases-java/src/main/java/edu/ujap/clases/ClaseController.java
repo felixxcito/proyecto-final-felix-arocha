@@ -123,18 +123,19 @@ public class ClaseController {
   // ----------------------------------------------------------------- CRUD profesor
   @PostMapping("/temas")
   public ResponseEntity<Clase> crear(@RequestBody TemaIn in, @RequestHeader(value = "Authorization", required = false) String h) {
-    auth.profesor(h);
+    Claims u = auth.profesor(h);
     Clase c = new Clase();
-    aplicar(c, in);
+    aplicar(c, in, Long.valueOf(u.getSubject()));
     return ResponseEntity.status(201).body(repo.save(c));
   }
 
   @PutMapping("/temas/{id}")
   public Clase editar(@PathVariable Long id, @RequestBody TemaIn in,
       @RequestHeader(value = "Authorization", required = false) String h) {
-    auth.profesor(h);
+    Claims u = auth.profesor(h);
     Clase c = buscar(id);
-    aplicar(c, in);
+    exigirDueno(u, c);
+    aplicar(c, in, Long.valueOf(u.getSubject()));
     repo.save(c);
     if ("PUBLICADA".equals(c.getEstado())) acceso.sincronizar(c); // pudieron cambiar las secciones
     return c;
@@ -291,11 +292,13 @@ public class ClaseController {
     return repo.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tema no existe"));
   }
 
-  private void aplicar(Clase c, TemaIn in) {
+  private void aplicar(Clase c, TemaIn in, Long profesorId) {
     if (in.titulo() == null || in.titulo().isBlank())
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El titulo es obligatorio");
     if (in.materiaId() == null || !materias.existsById(in.materiaId()))
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Elige la materia del tema");
+    // El tema solo puede ir a una materia del propio profesor (no se puede publicar en la de otro)
+    acceso.exigirDueno(profesorId, materias.findById(in.materiaId()).orElse(null));
     c.setSemana(in.semana());
     c.setTitulo(in.titulo().trim());
     c.setDescripcion(in.descripcion());
