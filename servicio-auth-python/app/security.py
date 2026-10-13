@@ -27,6 +27,7 @@ def crear_token(usuario, recordarme: bool = False) -> str:
         "sub": str(usuario.id),
         "email": usuario.email,
         "nombre": usuario.nombre,
+        "cedula": usuario.cedula,
         "rol": usuario.rol,
         "exp": datetime.now(timezone.utc) + timedelta(hours=EXPIRA_HORAS_RECORDADO if recordarme else EXPIRA_HORAS),
     }
