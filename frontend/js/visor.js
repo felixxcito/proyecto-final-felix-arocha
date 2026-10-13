@@ -106,7 +106,7 @@ const Visor = (() => {
       else mostrarTexto(d, avisoVista());
     }
 
-    // La profesora corrige el titulo y la explicacion que escribio la IA, sin salir del visor
+    // El profesor corrige el titulo y la explicacion que escribio la IA, sin salir del visor
     function editar(d) {
       $('vTexto').innerHTML = `
         <div class="semana" style="font-family:var(--mono);color:var(--accent);font-weight:600;font-size:.8rem">EDITANDO DIAPOSITIVA ${d.n}</div>
@@ -182,7 +182,7 @@ const Visor = (() => {
       const propias = consultas.filter((c) => c.diapositiva === actual);
       $('chatMensajes').innerHTML = propias.length
         ? propias.map(burbujas).join('')
-        : `<p class="muted chat-vacio">Pregunta lo que no te quedó claro de esta diapositiva. La IA responde usando su contenido.${esProfe ? '<br><br>(Tus preguntas como profesora no aparecen en el reporte de dudas.)' : ''}</p>`;
+        : `<p class="muted chat-vacio">Pregunta lo que no te quedó claro de esta diapositiva. La IA responde usando su contenido.${esProfe ? '<br><br>(Tus preguntas como profesor no aparecen en el reporte de dudas.)' : ''}</p>`;
       const m = $('chatMensajes');
       m.scrollTop = m.scrollHeight;
     }
@@ -220,7 +220,7 @@ const Visor = (() => {
     await ir(actual);
   }
 
-  // ---------------------------------------------------------------- reporte para la profesora
+  // ---------------------------------------------------------------- reporte para el profesor
   async function pintarDudas(destino, claseId, irADiapositiva) {
     destino.innerHTML = '<div class="row"><div class="spinner"></div> Cargando dudas...</div>';
     const lista = await API.get(`ia/clases/${claseId}/consultas`);

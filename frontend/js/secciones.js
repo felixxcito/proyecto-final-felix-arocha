@@ -1,8 +1,8 @@
-// Materias y secciones: la profesora organiza a sus estudiantes por materia y seccion.
+// Materias y secciones: el profesor organiza sus materias, secciones y horarios.
 const Secciones = (() => {
   let cache = null;
 
-  /** Materias con sus secciones (la profesora ve todas; el estudiante solo las suyas). */
+  /** Materias con sus secciones (el profesor ve las suyas; el estudiante solo donde esta inscrito). */
   async function materias(refrescar = false) {
     if (!cache || refrescar) cache = await API.get('clases/materias');
     return cache;
@@ -65,7 +65,7 @@ const Secciones = (() => {
     };
   }
 
-  // ---------------------------------------------------------------- vista de la profesora
+  // ---------------------------------------------------------------- vista del profesor
   async function vista(destino) {
     destino.innerHTML = '<div class="row"><div class="spinner"></div> Cargando materias...</div>';
     const ms = await materias(true);
