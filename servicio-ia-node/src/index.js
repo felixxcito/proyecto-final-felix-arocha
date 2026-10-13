@@ -293,8 +293,9 @@ app.put('/clases/:id/mis-preguntas', conToken, soloEstudiante, h(async (req, res
   }
   await a.save();
   if (a.entregada) {
-    const c = await Contenido.findOne({ claseId }, 'titulo');
-    usuariosPorRol('profesor').then((profes) => profes.forEach((p) => notificar(p,
+    const c = await Contenido.findOne({ claseId }, 'titulo profesorId');
+    // Se avisa SOLO al profesor dueno de la clase (antes se avisaba a todos los profesores)
+    usuariosPorRol('profesor').then((profes) => profes.filter((p) => p.id === c?.profesorId).forEach((p) => notificar(p,
       `${req.usuario.nombre} entrego sus respuestas`,
       `${req.usuario.nombre} respondio sus ${a.preguntas.length} preguntas de la clase "${c?.titulo}".`, `#/clase/${claseId}/respuestas`)))
       .catch((e) => console.error(e.message));
