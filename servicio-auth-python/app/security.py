@@ -48,6 +48,12 @@ def solo_profesor(user: dict = Depends(usuario_actual)) -> dict:
     return user
 
 
+def solo_admin(user: dict = Depends(usuario_actual)) -> dict:
+    if user["rol"] != "admin":
+        raise HTTPException(403, "Solo el administrador puede hacer esto")
+    return user
+
+
 def profesor_o_interno(
     authorization: str = Header(default=""), x_internal_token: str = Header(default="")
 ) -> dict:
