@@ -366,7 +366,10 @@ app.get('/mis-asignaciones', conToken, soloEstudiante, h(async (req, res) => {
 }));
 
 app.get('/estadisticas', conToken, soloProfesor, h(async (req, res) => {
+  // Solo las entregas de las clases de este profesor
+  const mias = (await Contenido.find({ profesorId: req.usuario.id }, 'claseId')).map((c) => c.claseId);
   res.json(await Asignacion.aggregate([
+    { $match: { claseId: { $in: mias } } },
     { $group: { _id: '$claseId', total: { $sum: 1 }, entregadas: { $sum: { $cond: ['$entregada', 1, 0] } } } },
     { $project: { _id: 0, claseId: '$_id', total: 1, entregadas: 1 } },
   ]));
