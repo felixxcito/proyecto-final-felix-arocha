@@ -2,7 +2,10 @@ package edu.ujap.clases;
 
 import io.jsonwebtoken.Claims;
 import java.util.*;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Catalogo de materias y solicitudes de inscripcion — Java + Spring Data JPA
@@ -31,6 +34,9 @@ public class SolicitudController {
     this.acceso = acceso;
     this.notif = notif;
   }
+
+  record SolicitudIn(Long seccionId) {}
+  record ResolucionIn(Boolean aprobar) {}
 
   // ----------------------------------------------------------------- catalogo
   @GetMapping("/catalogo")
@@ -63,5 +69,35 @@ public class SolicitudController {
       resultado.add(x);
     }
     return resultado;
+  }
+
+  // ----------------------------------------------------------------- pedir inscripcion
+  @PostMapping("/solicitudes")
+  public ResponseEntity<Solicitud> solicitar(@RequestBody SolicitudIn in,
+      @RequestHeader(value = "Authorization", required = false) String h) {
+    Claims u = auth.estudiante(h);
+    Long uid = Long.valueOf(u.getSubject());
+    Seccion s = in.seccionId() == null ? null : secciones.findById(in.seccionId()).orElse(null);
+    if (s == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Esa seccion no existe");
+    if (s.getEstudiantes().contains(uid))
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "Ya estas inscrito en esa seccion");
+    if (solicitudes.existsBySeccion_IdAndEstudianteIdAndEstado(s.getId(), uid, "PENDIENTE"))
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "Ya tienes una solicitud pendiente en esa seccion");
+
+    // Nombre, cedula y correo salen del token firmado: el estudiante no puede inventarlos
+    Solicitud sol = new Solicitud();
+    sol.setSeccion(s);
+    sol.setEstudianteId(uid);
+    sol.setEstudianteNombre(u.get("nombre", String.class));
+    sol.setEstudianteCedula(u.get("cedula", String.class));
+    sol.setEstudianteEmail(u.get("email", String.class));
+    solicitudes.save(sol);
+
+    Materia m = s.getMateria();
+    notif.avisar(m.getProfesorId(), m.getProfesorEmail(), m.getProfesorNombre(),
+        "Nueva solicitud de inscripcion",
+        sol.getEstudianteNombre() + " (cedula " + sol.getEstudianteCedula() + ") pidio inscribirse en "
+            + m.getNombre() + ", " + s.getNombre() + ".", "#/solicitudes");
+    return ResponseEntity.status(201).body(sol);
   }
 }
