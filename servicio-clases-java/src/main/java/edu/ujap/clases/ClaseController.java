@@ -79,23 +79,29 @@ public class ClaseController {
 
   // ----------------------------------------------------------------- lectura
   @GetMapping("/temas")
-  public List<Clase> listar(@RequestHeader(value = "Authorization", required = false) String h) {
+  public List<?> listar(@RequestHeader(value = "Authorization", required = false) String h) {
     Claims u = auth.usuario(h);
     List<Clase> todas = repo.findAllByOrderBySemanaAscIdAsc();
     Long uid = Long.valueOf(u.getSubject());
     // El profesor ve solo los temas de SUS materias; el estudiante, los de sus secciones
     if (auth.esProfesor(u)) return todas.stream().filter(c -> esMia(uid, c)).toList();
-    return todas.stream().filter(c -> acceso.estaInscrito(uid, c)).toList();
+    // El estudiante recibe solo los temas PUBLICADOS de sus secciones y solo los campos del DTO
+    return todas.stream().filter(c -> "PUBLICADA".equals(c.getEstado()) && acceso.estaInscrito(uid, c))
+        .map(c -> paraEstudiante(c, uid)).toList();
   }
 
   @GetMapping("/temas/{id}")
-  public Clase obtener(@PathVariable Long id, @RequestHeader(value = "Authorization", required = false) String h) {
+  public Object obtener(@PathVariable Long id, @RequestHeader(value = "Authorization", required = false) String h) {
     Claims u = auth.usuario(h);
     Clase c = buscar(id);
-    if (auth.esProfesor(u)) exigirDueno(u, c);
-    else if (!acceso.estaInscrito(Long.valueOf(u.getSubject()), c))
-      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Esta clase no es de tu seccion");
-    return c;
+    if (auth.esProfesor(u)) {
+      exigirDueno(u, c);
+      return c;
+    }
+    Long uid = Long.valueOf(u.getSubject());
+    if (!acceso.estaInscrito(uid, c) || !"PUBLICADA".equals(c.getEstado()))
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Esta clase no esta disponible para ti");
+    return paraEstudiante(c, uid);
   }
 
   /** Acepta el token por header o por ?token= (para poder abrirlo en un iframe / pestana). */
