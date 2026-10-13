@@ -19,7 +19,7 @@ import org.springframework.web.server.ResponseStatusException;
  *   POST   /materias/{id}/secciones        -> crear seccion
  *   PUT    /secciones/{id}                 -> editar seccion
  *   DELETE /secciones/{id}                 -> eliminar seccion
- *   PUT    /secciones/{id}/estudiantes     -> inscribir estudiantes (reemplaza la lista)
+ *   DELETE /secciones/{id}/estudiantes/{eid} -> dar de baja a un estudiante
  * Internos (Python -> Java):
  *   POST   /interno/inscribir              -> inscribir un estudiante recien creado
  *   DELETE /interno/estudiantes/{id}       -> sacar a un estudiante eliminado de sus secciones
@@ -45,7 +45,6 @@ public class MateriaController {
 
   record MateriaIn(String nombre, String codigo, String descripcion) {}
   record SeccionIn(String nombre, String horario) {}
-  record EstudiantesIn(List<Long> estudiantes) {}
   record InscripcionIn(Long estudianteId, List<Long> secciones) {}
 
   // ----------------------------------------------------------------- materias
@@ -176,17 +175,18 @@ public class MateriaController {
     return ResponseEntity.noContent().build();
   }
 
-  /** Inscribe exactamente estos estudiantes en la seccion y actualiza el acceso a las clases publicadas. */
-  @PutMapping("/secciones/{id}/estudiantes")
-  public Seccion inscribir(@PathVariable Long id, @RequestBody EstudiantesIn in,
+  /** El profesor da de baja a un estudiante de su seccion (pierde el acceso a las clases de esa materia). */
+  @DeleteMapping("/secciones/{id}/estudiantes/{estudianteId}")
+  public ResponseEntity<Void> quitarEstudiante(@PathVariable Long id, @PathVariable Long estudianteId,
       @RequestHeader(value = "Authorization", required = false) String h) {
     Claims u = auth.profesor(h);
     Seccion s = seccion(id);
     acceso.exigirDueno(Long.valueOf(u.getSubject()), s.getMateria());
-    s.setEstudiantes(new HashSet<>(Optional.ofNullable(in.estudiantes()).orElse(List.of())));
+    if (!s.getEstudiantes().remove(estudianteId))
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ese estudiante no esta en la seccion");
     secciones.save(s);
     acceso.sincronizarMateria(s.getMateriaId());
-    return s;
+    return ResponseEntity.noContent().build();
   }
 
   // ----------------------------------------------------------------- internos (Python -> Java)
