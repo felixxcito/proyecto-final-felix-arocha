@@ -6,18 +6,21 @@ Plataforma web para la materia *Lenguajes de Programación* construida con **4 m
 
 ## ¿Qué hace el sistema?
 
-- **Login con roles** (profesora / estudiante). Las claves se guardan encriptadas con **bcrypt** y la sesión usa **JWT**.
-- La **profesora** organiza su trabajo en **materias y secciones** (ej. *Lenguajes de Programación → Sección 01, Sección 02*), crea las cuentas de sus estudiantes inscribiéndolos en su sección, organiza los temas por semana y **sube su presentación** (PDF o PPTX).
-- Cada tema se publica a **todas las secciones de la materia o solo a las que ella elija**; cada estudiante solo ve las clases de su sección.
-- La **IA** lee cada diapositiva y escribe una **explicación** para los estudiantes. La profesora puede corregirla antes de publicar.
-- Al publicar, la IA genera **preguntas distintas para cada estudiante** (la profesora elige cuántas, de 1 a 20; por defecto 5). Ningún estudiante recibe una pregunta que tenga otro. La profesora puede corregir cualquier pregunta mientras el estudiante no haya entregado.
-- **Clases privadas con lista de asistencia:** la profesora marca la clase como "Solo asistentes" y **pasa lista por sección** (pestaña por sección, "Todos presentes" / "Ninguno"). Solo los presentes reciben acceso, sus preguntas y una notificación. Puede ir agregando estudiantes mientras da la clase.
+Una plataforma de clases con tres tipos de cuenta, como una web normal:
+
+- **Cualquiera se registra** como **estudiante** o **profesor** con nombre, **cédula**, correo y clave, y **confirma su correo con un código de 6 dígitos** que le llega de verdad (vence en 10 minutos, máximo 5 intentos). También hay **"¿Olvidaste tu clave?"** (otro código al correo) y la casilla **"Recordarme"** (sesión de 30 días).
+- Los **profesores** quedan en una **lista de espera** hasta que el **administrador general** los aprueba (recibe un aviso y los aprueba o rechaza desde su panel; al profesor le llega un correo con la decisión).
+- Cada **profesor** crea **sus propias materias, secciones y horarios**. Solo él ve y modifica lo suyo.
+- El **estudiante** abre **"Inscribirme"**: el catálogo muestra los profesores con sus materias y las secciones con su horario, y **solicita inscripción**. El profesor ve en su inicio las **solicitudes pendientes** con el **nombre, la cédula y el correo** del estudiante y las **aprueba o rechaza**; el estudiante recibe la respuesta (campanita y correo).
+- El profesor organiza los temas por semana y **sube su presentación** (PDF o PPTX). Cada tema se publica a **todas las secciones de la materia o solo a las que elija**; el estudiante solo ve las clases de las secciones donde fue aprobado.
+- La **IA** lee cada diapositiva y escribe una **explicación**. El profesor puede corregirla antes de publicar (en el visor con el botón *Editar* o en la pestaña *Editar explicaciones*).
+- Al publicar, la IA genera **preguntas distintas para cada estudiante** (el profesor elige cuántas, de 1 a 20; por defecto 5). Ningún estudiante recibe una pregunta que tenga otro. El profesor puede corregir cualquier pregunta mientras el estudiante no haya entregado.
+- **Clases privadas con lista de asistencia:** el profesor marca la clase como "Solo asistentes" y **pasa lista por sección** (con nombre, cédula y correo de cada alumno). Solo los presentes reciben acceso, sus preguntas y una notificación.
 - **Visor de diapositivas:** el estudiante ve la diapositiva real junto a la explicación de la IA y avanza con ← →. Los PPTX se convierten a PDF en el servidor con LibreOffice.
-- **"Pregúntale a la IA":** un botón pequeño abajo a la derecha abre un chat que conoce la diapositiva que el estudiante está viendo.
-- La profesora puede **editar la explicación de la IA** directamente en el visor (botón *Editar*) o en la pestaña *Editar explicaciones*.
-- La profesora ve en **"Dudas a la IA"** qué preguntó cada alumno, en qué diapositiva y qué le respondió la IA, además de las diapositivas con más dudas.
-- Los estudiantes estudian la clase, **responden** y entregan. La profesora ve todas las respuestas.
-- **Notificaciones** con campanita en la web y **por correo** (clase nueva, preguntas asignadas, respuestas entregadas, bienvenida).
+- **"Pregúntale a la IA":** un botón pequeño abajo a la derecha abre un chat que conoce la diapositiva que el estudiante está viendo. El profesor ve en **"Dudas a la IA"** qué preguntó cada alumno, en qué diapositiva y qué le respondió la IA.
+- Los estudiantes **responden** y entregan; el profesor de esa clase ve todas las respuestas y recibe el aviso.
+- **Notificaciones** con campanita en la web y **por correo** (códigos, solicitudes, aprobaciones, clase nueva, preguntas asignadas, entregas).
+- El **administrador general** también puede activar o desactivar cuentas: una cuenta desactivada **pierde el acceso al instante** en los 4 servicios.
 - La página **"Cómo lo construimos"** (`https://localhost/como-lo-hicimos.html`) explica cada requisito de la Clase 12 con el código real y muestra el estado de los servicios en vivo.
 
 ## Arquitectura
