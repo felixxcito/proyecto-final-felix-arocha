@@ -323,6 +323,9 @@ location /api/clases/ {
           <div class="qcp">
             <div class="card"><h4>bcrypt</h4><p>La clave se guarda como hash con sal aleatoria. Ni la base de datos ni el administrador pueden leerla; solo se puede verificar.</p></div>
             <div class="card"><h4>JWT</h4><p>Al iniciar sesión Python firma un token con id, nombre y rol, válido 12 horas. El frontend lo envía en <code>Authorization: Bearer</code>.</p></div>
+            <div class="card"><h4>Código por correo</h4><p>Al registrarse se envía un código de 6 dígitos (<code>secrets</code>, hasheado, vence en 10 min, 5 intentos). Sin confirmarlo no se puede entrar. También recupera la clave.</p></div>
+            <div class="card"><h4>Lista de espera</h4><p>Un profesor verifica su correo pero queda <code>en_espera</code> hasta que el administrador lo aprueba: así un estudiante no puede hacerse pasar por profesor.</p></div>
+            <div class="card"><h4>Revocación inmediata</h4><p>Nginx usa <code>auth_request</code> para preguntarle a Python en cada petición si la cuenta sigue activa: desactivar a alguien corta su sesión al instante en los 4 servicios.</p></div>
             <div class="card"><h4>Roles</h4><p>Tres roles: administrador, profesor y estudiante. El profesor solo ve y modifica lo suyo (403 si es de otro). Cada servicio verifica el rol <em>y</em> la pertenencia con lo que dice el token firmado.</p></div>
           </div>
 <pre class="code"><span class="k">def</span> hash_password(password):
