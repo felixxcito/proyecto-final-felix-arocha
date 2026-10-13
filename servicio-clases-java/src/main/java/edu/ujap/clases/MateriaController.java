@@ -68,6 +68,8 @@ public class MateriaController {
             x.put("horario", s.getHorario());
             x.put("materiaId", m.getId());
             x.put("estudiantes", profe ? s.getEstudiantes() : List.of());
+            // Solo el profesor ve quienes son (nombre, cedula y correo, copiados de su solicitud aprobada)
+            x.put("estudiantesDetalle", profe ? detalleDe(s) : List.of());
             return x;
           }).toList();
       if (!profe && secs.isEmpty()) continue;
@@ -81,6 +83,24 @@ public class MateriaController {
       resultado.add(x);
     }
     return resultado;
+  }
+
+  /** Los estudiantes inscritos de una seccion con sus datos, tomados de sus solicitudes aprobadas. */
+  private List<Map<String, Object>> detalleDe(Seccion s) {
+    Map<Long, Solicitud> porEstudiante = new LinkedHashMap<>();
+    for (Solicitud sol : solicitudes.findBySeccion_IdAndEstado(s.getId(), "APROBADA")) porEstudiante.put(sol.getEstudianteId(), sol);
+    List<Map<String, Object>> detalle = new ArrayList<>();
+    for (Long id : s.getEstudiantes()) {
+      Solicitud sol = porEstudiante.get(id);
+      Map<String, Object> x = new LinkedHashMap<>();
+      x.put("id", id);
+      x.put("nombre", sol == null ? "Estudiante " + id : sol.getEstudianteNombre());
+      x.put("cedula", sol == null ? null : sol.getEstudianteCedula());
+      x.put("email", sol == null ? null : sol.getEstudianteEmail());
+      detalle.add(x);
+    }
+    detalle.sort(Comparator.comparing(x -> String.valueOf(x.get("nombre"))));
+    return detalle;
   }
 
   @PostMapping("/materias")
