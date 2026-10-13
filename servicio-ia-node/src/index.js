@@ -56,6 +56,14 @@ const soloEstudiante = (req, res, next) => (req.usuario.rol === 'estudiante'
 const soloInterno = (req, res, next) => (req.headers['x-internal-token'] === process.env.INTERNAL_TOKEN
   ? next() : res.status(403).json({ detail: 'Solo servicios internos' }));
 
+/** Carga el contenido de la clase y comprueba que sea del profesor. Si no, ya respondio (404 o 403) y devuelve null. */
+async function claseDelProfesor(req, res, campos) {
+  const c = await Contenido.findOne({ claseId: Number(req.params.id) }, campos);
+  if (!c) { res.status(404).json({ detail: 'Esta clase no existe' }); return null; }
+  if (c.profesorId !== req.usuario.id) { res.status(403).json({ detail: 'Esta clase no es tuya' }); return null; }
+  return c;
+}
+
 // Envuelve handlers async para que los errores devuelvan 500 en JSON
 const h = (fn) => (req, res, next) => fn(req, res, next).catch((e) => {
   console.error(e);
