@@ -114,9 +114,11 @@ public class MateriaController {
   @PostMapping("/materias/{id}/secciones")
   public ResponseEntity<Seccion> crearSeccion(@PathVariable Long id, @RequestBody SeccionIn in,
       @RequestHeader(value = "Authorization", required = false) String h) {
-    auth.profesor(h);
+    Claims u = auth.profesor(h);
+    Materia m = materia(id);
+    acceso.exigirDueno(Long.valueOf(u.getSubject()), m);
     Seccion s = new Seccion();
-    s.setMateria(materia(id));
+    s.setMateria(m);
     aplicar(s, in);
     return ResponseEntity.status(201).body(secciones.save(s));
   }
@@ -124,8 +126,9 @@ public class MateriaController {
   @PutMapping("/secciones/{id}")
   public Seccion editarSeccion(@PathVariable Long id, @RequestBody SeccionIn in,
       @RequestHeader(value = "Authorization", required = false) String h) {
-    auth.profesor(h);
+    Claims u = auth.profesor(h);
     Seccion s = seccion(id);
+    acceso.exigirDueno(Long.valueOf(u.getSubject()), s.getMateria());
     aplicar(s, in);
     return secciones.save(s);
   }
@@ -134,9 +137,10 @@ public class MateriaController {
   @DeleteMapping("/secciones/{id}")
   public ResponseEntity<Void> eliminarSeccion(@PathVariable Long id,
       @RequestHeader(value = "Authorization", required = false) String h) {
-    auth.profesor(h);
+    Claims u = auth.profesor(h);
     Seccion s = seccion(id);
     Materia m = s.getMateria();
+    acceso.exigirDueno(Long.valueOf(u.getSubject()), m);
     m.getSecciones().remove(s); // orphanRemoval borra la fila al terminar la transaccion
     secciones.flush();
     acceso.sincronizarMateria(m.getId());
