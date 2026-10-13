@@ -179,16 +179,18 @@ Lo que ya protege el sistema:
 
 ## Recorrido sugerido para evaluar
 
-1. Entrar como profesora → **Secciones**: ya existe *Lenguajes de Programación · Sección 01*; crear una *Sección 02*.
-2. **Usuarios** → crear 2 estudiantes eligiendo su sección (botón *Generar* para la clave).
-3. **Clases** → *Semana 12* (o *+ Nuevo tema*) → arrastrar la presentación (PDF o PPTX).
-3. Esperar a que la IA termine (la página se actualiza sola) → revisar/corregir las explicaciones → elegir cuántas preguntas por estudiante → **Publicar**.
-   - Opcional: marcar **🔒 Solo asistentes** y **Pasar lista** para que solo los presentes vean la clase.
-4. Ver en http://localhost:8025 los correos enviados.
-5. Cerrar sesión, entrar como estudiante → abrir la clase → **Ver clase**: recorrer las diapositivas y usar **Pregúntale a la IA**.
-6. **Mis 5 preguntas** → responder y entregar.
-7. Entrar con el otro estudiante: sus 5 preguntas son distintas.
-8. Volver como profesora: campanita con la entrega, pestañas **Respuestas de estudiantes** y **Dudas a la IA**.
+Necesitas tres navegadores o ventanas distintas (una normal y dos de incógnito) para tener varias sesiones a la vez.
+
+1. **Profesor:** pestaña *Registrarse* → rol **Profesor** → llena los datos → el código de 6 dígitos llega a Mailpit (http://localhost:8025) → escríbelo. Queda *en lista de espera*.
+2. **Administrador** (`admin@ujap.edu.ve`): en **Administración** aparece el profesor → **Aprobar**. El profesor recibe un correo.
+3. **Profesor:** inicia sesión → **Secciones** → *+ Nueva materia* → *+ Sección* con su horario.
+4. **Estudiante:** *Registrarse* (con su cédula) → confirma el código → **Inscribirme** → elige la sección del profesor → *Solicitar inscripción*.
+5. **Profesor:** en **Clases** aparece **Solicitudes pendientes** con nombre, cédula y correo → **Aprobar**. El estudiante recibe la notificación.
+6. **Profesor:** *+ Nuevo tema* (en su materia) → arrastra la presentación (PDF o PPTX) → espera a que la IA termine → revisa las explicaciones → **Publicar**.
+   - Opcional: **🔒 Solo asistentes** y **Pasar lista**.
+7. **Estudiante:** **Mis clases** → abre la clase → **Ver clase** (diapositivas y **Pregúntale a la IA**) → **Mis preguntas** → responde y entrega.
+8. **Profesor:** campanita con la entrega, pestañas **Respuestas de estudiantes** y **Dudas a la IA**.
+9. **Probar la recuperación de clave y la desactivación:** *¿Olvidaste tu clave?* en el ingreso; y en **Administración** → *Desactivar* a un estudiante con la sesión abierta: en su siguiente acción lo manda al ingreso.
 
 ## Estructura del repositorio
 
@@ -205,17 +207,13 @@ proyecto-final-felix-arocha/
 └── servicio-notificaciones-go/  Gin + GORM + SMTP
 ```
 
-## Temas de la materia
-
-Los temas iniciales se cargan desde `servicio-clases-java/src/main/resources/temas-semilla.json` la primera vez que arranca el servicio. La profesora puede agregar, editar o eliminar temas desde la plataforma.
-
 ## Capturas
 
 ### Frontend
 
-| Login | Clases de la profesora |
+| Login | Clases del profesor |
 |---|---|
-| ![Login](docs/capturas/01-login.png) | ![Clases de la profesora](docs/capturas/02-clases-profesora.png) |
+| ![Login](docs/capturas/01-login.png) | ![Clases del profesor](docs/capturas/02-clases-profesor.png) |
 
 | Visor de diapositivas con la explicación de la IA | Chat "Pregúntale a la IA" |
 |---|---|
@@ -225,7 +223,7 @@ Los temas iniciales se cargan desde `servicio-clases-java/src/main/resources/tem
 |---|---|
 | ![Materias y secciones](docs/capturas/05-secciones.png) | ![Pasar lista](docs/capturas/06-pasar-lista.png) |
 
-| Preguntas del estudiante | Dudas a la IA (vista de la profesora) |
+| Preguntas del estudiante | Dudas a la IA (vista del profesor) |
 |---|---|
 | ![Preguntas del estudiante](docs/capturas/07-preguntas-estudiante.png) | ![Dudas a la IA](docs/capturas/08-dudas-ia.png) |
 
