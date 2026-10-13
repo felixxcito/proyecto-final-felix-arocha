@@ -18,11 +18,13 @@ public class Acceso {
   private static final Logger log = LoggerFactory.getLogger(Acceso.class);
   private final SeccionRepo secciones;
   private final ClaseRepo clases;
+  private final MateriaRepo materias;
   private final IaCliente ia;
 
-  public Acceso(SeccionRepo secciones, ClaseRepo clases, IaCliente ia) {
+  public Acceso(SeccionRepo secciones, ClaseRepo clases, MateriaRepo materias, IaCliente ia) {
     this.secciones = secciones;
     this.clases = clases;
+    this.materias = materias;
     this.ia = ia;
   }
 
@@ -62,12 +64,15 @@ public class Acceso {
 
   /** Java -> Node: quien tiene acceso; Node genera las preguntas de los nuevos y les avisa (Node -> Go). */
   public void sincronizar(Clase c) {
-    ia.post("/interno/asignar", Map.of(
-        "claseId", c.getId(),
-        "titulo", c.getTitulo(),
-        "privada", c.isPrivada(),
-        "permitidos", permitidos(c),
-        "preguntasPorEstudiante", c.getPreguntasPorEstudiante()));
+    Long profesorId = materias.findById(c.getMateriaId()).map(Materia::getProfesorId).orElse(null);
+    Map<String, Object> cuerpo = new HashMap<>();   // HashMap y no Map.of: profesorId podria ser null
+    cuerpo.put("claseId", c.getId());
+    cuerpo.put("profesorId", profesorId);
+    cuerpo.put("titulo", c.getTitulo());
+    cuerpo.put("privada", c.isPrivada());
+    cuerpo.put("permitidos", permitidos(c));
+    cuerpo.put("preguntasPorEstudiante", c.getPreguntasPorEstudiante());
+    ia.post("/interno/asignar", cuerpo);
   }
 
   /** Despues de cambiar inscripciones: re-sincroniza las clases publicadas de esa materia. */
