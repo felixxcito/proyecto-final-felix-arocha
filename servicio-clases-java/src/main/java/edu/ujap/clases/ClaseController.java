@@ -144,8 +144,9 @@ public class ClaseController {
   @DeleteMapping("/temas/{id}")
   public ResponseEntity<Void> eliminar(@PathVariable Long id,
       @RequestHeader(value = "Authorization", required = false) String h) throws IOException {
-    auth.profesor(h);
+    Claims u = auth.profesor(h);
     Clase c = buscar(id);
+    exigirDueno(u, c);
     if (c.getArchivoRuta() != null) Files.deleteIfExists(Path.of(c.getArchivoRuta()));
     if (c.getPdfRuta() != null) Files.deleteIfExists(Path.of(c.getPdfRuta()));
     repo.delete(c);
@@ -161,8 +162,9 @@ public class ClaseController {
   @PostMapping("/temas/{id}/presentacion")
   public Clase subir(@PathVariable Long id, @RequestParam("archivo") MultipartFile archivo,
       @RequestHeader(value = "Authorization", required = false) String h) throws IOException {
-    auth.profesor(h);
+    Claims u = auth.profesor(h);
     Clase c = buscar(id);
+    exigirDueno(u, c);
     String nombre = Optional.ofNullable(archivo.getOriginalFilename()).orElse("presentacion");
     String ext = nombre.contains(".") ? nombre.substring(nombre.lastIndexOf('.') + 1).toLowerCase() : "";
     if (!EXTENSIONES.contains(ext))
