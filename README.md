@@ -231,6 +231,16 @@ proyecto-final-felix-arocha/
 |---|---|
 | ![Notificaciones](docs/capturas/09-notificaciones.png) | ![Correos en Mailpit](docs/capturas/10-correos-mailpit.png) |
 
+### Registro, aprobación e inscripción
+
+| Código de verificación (6 casillas) | Panel del administrador |
+|---|---|
+| ![Código de verificación](docs/capturas/14-registro-codigo.png) | ![Lista de espera de profesores](docs/capturas/15-admin-lista-espera.png) |
+
+| Catálogo "Inscribirme" | Solicitudes del profesor (nombre, cédula y correo) |
+|---|---|
+| ![Catálogo](docs/capturas/16-catalogo-inscribirme.png) | ![Solicitudes](docs/capturas/17-solicitudes-profesor.png) |
+
 ### Servicios respondiendo
 
 Estado de los 4 microservicios consultado en vivo a través del gateway (`/api/<servicio>/health`):
