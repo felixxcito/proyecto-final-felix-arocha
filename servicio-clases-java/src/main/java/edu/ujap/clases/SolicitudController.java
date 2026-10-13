@@ -100,4 +100,43 @@ public class SolicitudController {
             + m.getNombre() + ", " + s.getNombre() + ".", "#/solicitudes");
     return ResponseEntity.status(201).body(sol);
   }
+
+  // ----------------------------------------------------------------- ver solicitudes
+  /** Una solicitud lista para mostrar: con el nombre de la seccion y la materia (la entidad no los trae). */
+  private Map<String, Object> aMapa(Solicitud sol) {
+    Seccion s = sol.getSeccion();
+    Map<String, Object> x = new LinkedHashMap<>();
+    x.put("id", sol.getId());
+    x.put("estado", sol.getEstado());
+    x.put("estudianteId", sol.getEstudianteId());
+    x.put("estudianteNombre", sol.getEstudianteNombre());
+    x.put("estudianteCedula", sol.getEstudianteCedula());
+    x.put("estudianteEmail", sol.getEstudianteEmail());
+    x.put("seccionId", s.getId());
+    x.put("seccionNombre", s.getNombre());
+    x.put("horario", s.getHorario());
+    x.put("materiaId", s.getMateria().getId());
+    x.put("materiaNombre", s.getMateria().getNombre());
+    x.put("profesorNombre", s.getMateria().getProfesorNombre());
+    x.put("creadaEn", sol.getCreadaEn());
+    x.put("resueltaEn", sol.getResueltaEn());
+    return x;
+  }
+
+  @GetMapping("/solicitudes")
+  public List<Map<String, Object>> listar(@RequestParam(value = "estado", required = false) String estado,
+      @RequestHeader(value = "Authorization", required = false) String h) {
+    Claims u = auth.usuario(h);
+    Long uid = Long.valueOf(u.getSubject());
+    List<Solicitud> lista = new ArrayList<>();
+    if (auth.esProfesor(u)) {
+      // Solo las de las secciones de SUS materias
+      for (Materia m : materias.findAllByOrderByNombreAsc())
+        if (Objects.equals(m.getProfesorId(), uid)) lista.addAll(solicitudes.findBySeccion_Materia_IdOrderByCreadaEnDesc(m.getId()));
+      lista.sort(Comparator.comparing(Solicitud::getCreadaEn).reversed());
+    } else {
+      lista.addAll(solicitudes.findByEstudianteIdOrderByCreadaEnDesc(uid));
+    }
+    return lista.stream().filter(sol -> estado == null || estado.equalsIgnoreCase(sol.getEstado())).map(this::aMapa).toList();
+  }
 }
