@@ -264,3 +264,6 @@ a.clase-card:hover { border-color: var(--brand-2); transform: translateY(-2px); 
   border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
 .solicitud-datos { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
 .avisos-solicitudes { border-color: #f1d9a8; background: #fffaf0; margin-bottom: 1.4rem; }
+.secciones-catalogo { margin-top: .9rem; border-top: 1px solid var(--line); }
+.fila-seccion { display: flex; justify-content: space-between; align-items: center; gap: .8rem; flex-wrap: wrap; padding: .7rem 0; border-bottom: 1px solid var(--line); }
+.fila-seccion:last-child { border-bottom: none; }

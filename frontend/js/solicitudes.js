@@ -77,5 +77,51 @@ const Solicitudes = (() => {
     activarBotones(document.getElementById('zonaPendientes'), () => vistaProfesor(destino));
   }
 
-  return { panel, vistaProfesor };
+  // ---------------------------------------------------------------- catalogo del estudiante
+  /** Boton o etiqueta segun el estado del estudiante en esa seccion. */
+  function accionSeccion(sec) {
+    if (sec.estado === 'INSCRITO') return '<span class="badge ok">✓ Inscrito</span>';
+    if (sec.estado === 'PENDIENTE') return '<span class="badge warn">Pendiente de aprobación</span>';
+    const rechazada = sec.estado === 'RECHAZADA' ? '<span class="badge err" style="margin-right:.5rem">Rechazada</span>' : '';
+    return `${rechazada}<button class="btn small primary" data-solicitar="${sec.id}">${sec.estado === 'RECHAZADA' ? 'Volver a solicitar' : 'Solicitar inscripción'}</button>`;
+  }
+
+  /** "Inscribirme": profesores > materias > secciones con su horario. El estudiante solicita y espera la aprobacion. */
+  async function vistaCatalogo(destino) {
+    destino.innerHTML = '<div class="row"><div class="spinner"></div> Cargando el catálogo...</div>';
+    const catalogo = await API.get('clases/catalogo');
+    const porProfesor = new Map();
+    for (const m of catalogo) {
+      if (!porProfesor.has(m.profesorNombre)) porProfesor.set(m.profesorNombre, []);
+      porProfesor.get(m.profesorNombre).push(m);
+    }
+
+    destino.innerHTML = `
+      <div class="page-head"><div><h1>Inscribirme</h1>
+        <p class="muted" style="margin:0">Elige la materia y la sección de tu profesor. Cuando él te apruebe, verás sus clases en "Mis clases".</p></div></div>
+      ${[...porProfesor].map(([profesor, ms]) => `<section class="bloque-materia">
+        <h2 style="margin-bottom:.7rem">👩‍🏫 ${esc(profesor || 'Profesor')}</h2>
+        <div class="grid">${ms.map((m) => `<div class="card">
+          <h3 style="margin-bottom:.1rem">${esc(m.nombre)}</h3>
+          <span class="semana" style="font-family:var(--mono);color:var(--accent);font-size:.78rem">${esc(m.codigo || '')}</span>
+          ${m.descripcion ? `<p class="muted" style="margin:.4rem 0 0">${esc(m.descripcion)}</p>` : ''}
+          <div class="secciones-catalogo">${m.secciones.map((sec) => `<div class="fila-seccion">
+              <div><strong>${esc(sec.nombre)}</strong><br><span class="muted" style="font-size:.84rem">${esc(sec.horario || 'Horario por definir')}</span></div>
+              <div>${accionSeccion(sec)}</div></div>`).join('') || '<p class="muted">Todavía no tiene secciones.</p>'}</div>
+        </div>`).join('')}</div>
+      </section>`).join('') || '<div class="card estado">Todavía no hay materias disponibles. Cuando un profesor cree las suyas aparecerán aquí.</div>'}`;
+
+    destino.onclick = async (e) => {
+      const b = e.target.closest('[data-solicitar]');
+      if (!b) return;
+      b.disabled = true;
+      try {
+        await API.post('clases/solicitudes', { seccionId: Number(b.dataset.solicitar) });
+        toast('Solicitud enviada. Tu profesor recibirá un aviso.');
+      } catch (err) { toast(err.message, true); }
+      vistaCatalogo(destino);
+    };
+  }
+
+  return { panel, vistaProfesor, vistaCatalogo };
 })();
