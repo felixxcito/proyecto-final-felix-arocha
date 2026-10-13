@@ -78,14 +78,15 @@ Las llamadas internas usan el nombre del servicio como host (`http://servicio-ia
 | Java → Node | `POST /interno/procesar`: envía la presentación subida para que la IA la explique |
 | Node → Java | `PATCH /interno/temas/:id/estado`: avisa que terminó (BORRADOR) o falló (ERROR) |
 | Java → Node | `POST /interno/asignar`: al publicar, generar las 5 preguntas por estudiante |
-| Node → Python | `GET /usuarios?rol=estudiante`: saber a quién asignar preguntas o a qué profesora avisar |
-| Node → Go | `POST /interno/notificar`: campanita + correo a cada estudiante / a la profesora |
-| Python → Java | `POST /interno/inscribir`: inscribir al estudiante recién creado en su sección (Java → Node le asigna las preguntas de las clases ya publicadas) |
+| Node → Python | `GET /usuarios?rol=…`: nombre y correo de los estudiantes con acceso o del profesor dueño (ruta solo interna) |
+| Node → Go | `POST /interno/notificar`: campanita + correo a cada estudiante / al profesor dueño de la clase |
 | Python → Java | `DELETE /interno/estudiantes/:id`: sacar de sus secciones a un estudiante eliminado |
-| Java → Node | `POST /interno/asignar` también cada vez que cambian las secciones o la lista: Java calcula quién tiene acceso (`permitidos`) |
-| Python → Go | `POST /interno/notificar`: correo de bienvenida |
+| Java → Node | `POST /interno/asignar` cada vez que cambian las secciones, la lista o se aprueba a un estudiante: Java calcula quién tiene acceso (`permitidos`) y el profesor dueño |
+| Python → Go | `POST /interno/correo`: **código de verificación** y de recuperación de clave (síncrono: si el correo no sale, el usuario lo sabe) |
+| Python → Go | `POST /interno/notificar`: avisar a los admins de un profesor nuevo y al profesor de la decisión |
+| Java → Go | `POST /interno/notificar`: avisar al profesor de una solicitud y al estudiante de su respuesta |
 
-Además los 4 servicios validan el mismo **JWT** firmado con `SECRET_KEY`.
+Además los 4 servicios validan el mismo **JWT** firmado con `SECRET_KEY`, y **Nginx le pregunta a Python en cada petición** si la cuenta del token sigue activa (`auth_request`): un usuario desactivado o eliminado recibe 401 al instante en todos los servicios. Las rutas `/interno/*` están **cerradas en el gateway** (404 desde el navegador).
 
 ## Cómo ejecutarlo
 
