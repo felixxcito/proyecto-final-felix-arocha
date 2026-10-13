@@ -270,6 +270,21 @@ public class ClaseController {
   }
 
   // ----------------------------------------------------------------- utilidades
+  /** Materia a la que pertenece un tema (null si el tema todavia no tiene). */
+  private Materia materiaDe(Clase c) {
+    return c.getMateriaId() == null ? null : materias.findById(c.getMateriaId()).orElse(null);
+  }
+
+  private boolean esMia(Long profesorId, Clase c) {
+    Materia m = materiaDe(c);
+    return m != null && Objects.equals(m.getProfesorId(), profesorId);
+  }
+
+  /** 403 si el tema es de la materia de otro profesor. */
+  private void exigirDueno(Claims u, Clase c) {
+    acceso.exigirDueno(Long.valueOf(u.getSubject()), materiaDe(c));
+  }
+
   private Clase buscar(Long id) {
     return repo.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tema no existe"));
   }
