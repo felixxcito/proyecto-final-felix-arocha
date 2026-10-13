@@ -185,10 +185,10 @@ function asignarPreguntas(claseId, estudiantes) {
 
 // ------------------------------------------------------------------ endpoints internos
 app.post('/interno/procesar', soloInterno, h(async (req, res) => {
-  const { claseId, titulo, descripcion, nombreArchivo, tipo } = req.body;
+  const { claseId, profesorId, titulo, descripcion, nombreArchivo, tipo } = req.body;
   await Contenido.updateOne(
     { claseId },
-    { $set: { titulo, descripcion, nombreArchivo, tipo, estado: 'procesando', error: null } },
+    { $set: { profesorId: Number(profesorId), titulo, descripcion, nombreArchivo, tipo, estado: 'procesando', error: null } },
     { upsert: true },
   );
   res.status(202).json({ ok: true });
@@ -196,9 +196,10 @@ app.post('/interno/procesar', soloInterno, h(async (req, res) => {
 }));
 
 app.post('/interno/asignar', soloInterno, h(async (req, res) => {
-  const { claseId, privada, permitidos, preguntasPorEstudiante } = req.body;
+  const { claseId, profesorId, privada, permitidos, preguntasPorEstudiante } = req.body;
   await Contenido.updateOne({ claseId }, {
     publicado: true,
+    ...(profesorId ? { profesorId: Number(profesorId) } : {}),
     privada: Boolean(privada),
     permitidos: (permitidos || []).map(Number),
     preguntasPorEstudiante: Math.min(20, Math.max(1, Number(preguntasPorEstudiante) || 5)),

@@ -12,6 +12,7 @@ const diapositivaSchema = new mongoose.Schema({
 
 const contenidoSchema = new mongoose.Schema({
   claseId: { type: Number, required: true, unique: true },
+  profesorId: Number,   // dueno de la clase (id del usuario en el servicio de auth); lo envia Java
   titulo: String,
   descripcion: String,
   nombreArchivo: String,
