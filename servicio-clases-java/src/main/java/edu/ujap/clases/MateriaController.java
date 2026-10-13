@@ -92,18 +92,21 @@ public class MateriaController {
   @PutMapping("/materias/{id}")
   public Materia editar(@PathVariable Long id, @RequestBody MateriaIn in,
       @RequestHeader(value = "Authorization", required = false) String h) {
-    auth.profesor(h);
+    Claims u = auth.profesor(h);
     Materia m = materia(id);
+    acceso.exigirDueno(Long.valueOf(u.getSubject()), m);
     aplicar(m, in);
     return materias.save(m);
   }
 
   @DeleteMapping("/materias/{id}")
   public ResponseEntity<Void> eliminar(@PathVariable Long id, @RequestHeader(value = "Authorization", required = false) String h) {
-    auth.profesor(h);
+    Claims u = auth.profesor(h);
+    Materia m = materia(id);
+    acceso.exigirDueno(Long.valueOf(u.getSubject()), m);
     if (clases.existsByMateriaId(id))
       throw new ResponseStatusException(HttpStatus.CONFLICT, "La materia tiene temas: muevelos o eliminalos primero");
-    materias.delete(materia(id));
+    materias.delete(m);
     return ResponseEntity.noContent().build();
   }
 
