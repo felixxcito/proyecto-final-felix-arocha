@@ -242,8 +242,8 @@ app.get('/clases/:id/contenido', conToken, h(async (req, res) => {
 }));
 
 app.put('/clases/:id/contenido', conToken, soloProfesor, h(async (req, res) => {
-  const c = await Contenido.findOne({ claseId: Number(req.params.id) });
-  if (!c) return res.status(404).json({ detail: 'No existe' });
+  const c = await claseDelProfesor(req, res);
+  if (!c) return;
   if (typeof req.body.resumen === 'string') c.resumen = req.body.resumen;
   for (const cambio of req.body.diapositivas || []) {
     const d = c.diapositivas.find((x) => x.n === Number(cambio.n));
