@@ -27,6 +27,7 @@ from .security import (
     crear_token,
     hash_password,
     profesor_o_interno,
+    solo_admin,
     solo_profesor,
     usuario_actual,
     verify_password,
@@ -334,3 +335,13 @@ def eliminar(uid: int, user=Depends(solo_profesor), db: Session = Depends(get_db
         httpx.delete(f"{CLASES_URL}/interno/estudiantes/{uid}", headers={"X-Internal-Token": INTERNAL_TOKEN}, timeout=10)
     except httpx.HTTPError as e:
         log.warning("No se pudo actualizar servicio-clases: %s", e)
+
+
+# ----------------------------------------------------------------- administrador general
+@app.get("/admin/profesores")
+def admin_profesores(estado: Optional[str] = None, _=Depends(solo_admin), db: Session = Depends(get_db)):
+    """Profesores registrados; con ?estado=en_espera, la lista de espera por aprobar."""
+    q = db.query(Usuario).filter_by(rol="profesor")
+    if estado:
+        q = q.filter_by(estado=estado)
+    return [a_json(u) for u in q.order_by(Usuario.creado_en).all()]
