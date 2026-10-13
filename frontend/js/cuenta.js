@@ -34,7 +34,7 @@ const Cuenta = (() => {
     raiz().querySelectorAll('[data-ir]').forEach((b) => { b.onclick = () => ir(b.dataset.ir); });
   }
 
-  const ir = (vista, datos) => ({ ingresar, registro, codigo, espera }[vista] || ingresar)(datos);
+  const ir = (vista, datos) => ({ ingresar, registro, codigo, espera, recuperar, nuevaClave }[vista] || ingresar)(datos);
 
   // ---------------------------------------------------------------- ingresar
   function ingresar(aviso = '') {
@@ -201,6 +201,65 @@ const Cuenta = (() => {
         clearInterval(temporizador);
         if (r.token) { API.guardarSesion(r); location.href = '/app.html'; return; }   // estudiante: entra directo
         espera(r.mensaje);                                                             // profesor: lista de espera
+      } catch (err) {
+        error.textContent = err.message;
+        btn.disabled = false;
+      }
+    };
+  }
+
+  // ---------------------------------------------------------------- recuperar la clave
+  function recuperar() {
+    pintar(`<form class="card" id="formRecuperar">
+      <h2>Recupera tu clave</h2>
+      <p class="muted">Escribe tu correo y te enviamos un código para elegir una clave nueva.</p>
+      <div class="field"><label for="correo">Correo</label><input id="correo" type="email" required autocomplete="email"></div>
+      <p class="error" id="error"></p>
+      <button class="btn primary" style="width:100%;justify-content:center" id="btn">Enviar código</button>
+      <p style="margin:.8rem 0 0"><a href="#" id="volver" class="muted">Volver</a></p>
+    </form>`);
+    document.getElementById('volver').onclick = (e) => { e.preventDefault(); ir('ingresar'); };
+    document.getElementById('formRecuperar').onsubmit = async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('btn');
+      btn.disabled = true;
+      const email = document.getElementById('correo').value.trim();
+      try {
+        await API.post('auth/recuperar', { email });
+        nuevaClave(email);
+      } catch (err) {
+        document.getElementById('error').textContent = err.message;
+        btn.disabled = false;
+      }
+    };
+  }
+
+  function nuevaClave(email) {
+    pintar(`<form class="card" id="formNueva">
+      <h2>Elige tu clave nueva</h2>
+      <p class="muted">Si <strong>${esc(email)}</strong> tiene una cuenta, le enviamos un código de 6 dígitos.</p>
+      <div class="codigo-cajas">${'<input inputmode="numeric" maxlength="1" autocomplete="one-time-code" aria-label="Digito del codigo">'.repeat(6)}</div>
+      ${campoClave('clave', 'Clave nueva (mínimo 8 caracteres)', 'new-password')}
+      ${campoClave('clave2', 'Repite la clave nueva', 'new-password')}
+      <p class="error" id="error"></p>
+      <button class="btn primary" style="width:100%;justify-content:center" id="btn">Cambiar clave</button>
+      <p style="margin:.8rem 0 0"><a href="#" id="volver" class="muted">Volver</a></p>
+    </form>`);
+    const leer = casillasCodigo();
+    activarOjos();
+    const error = document.getElementById('error');
+    document.getElementById('volver').onclick = (e) => { e.preventDefault(); ir('ingresar'); };
+    document.getElementById('formNueva').onsubmit = async (e) => {
+      e.preventDefault();
+      const clave = document.getElementById('clave').value;
+      if (leer().length < 6) { error.textContent = 'Escribe los 6 dígitos del código'; return; }
+      if (clave.length < 8) { error.textContent = 'La clave debe tener al menos 8 caracteres'; return; }
+      if (clave !== document.getElementById('clave2').value) { error.textContent = 'Las dos claves no coinciden'; return; }
+      const btn = document.getElementById('btn');
+      btn.disabled = true;
+      try {
+        await API.post('auth/recuperar/confirmar', { email, codigo: leer(), nuevaClave: clave });
+        ingresar('Clave actualizada. Ya puedes iniciar sesión con la nueva.');
       } catch (err) {
         error.textContent = err.message;
         btn.disabled = false;
