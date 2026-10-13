@@ -98,6 +98,12 @@ class ReenviarIn(BaseModel):
     email: str
 
 
+class RecuperarConfirmarIn(BaseModel):
+    email: str
+    codigo: str = Field(min_length=6, max_length=6)
+    nueva_clave: str = Field(min_length=8, max_length=72, alias="nuevaClave")
+
+
 class UsuarioPatch(BaseModel):
     nombre: Optional[str] = None
     password: Optional[str] = Field(default=None, min_length=6)
@@ -220,6 +226,30 @@ def registro_reenviar(datos: ReenviarIn, db: Session = Depends(get_db)):
     if u and u.estado == "sin_verificar":
         codigos.emitir(db, u, "verificar")
     return {"mensaje": "Si el correo tiene un registro pendiente, te enviamos un codigo nuevo"}
+
+
+@app.post("/recuperar")
+def recuperar(datos: ReenviarIn, db: Session = Depends(get_db)):
+    """Envia un codigo para poner una clave nueva. Siempre responde igual: asi no se puede usar este
+    formulario para averiguar que correos tienen cuenta."""
+    u = db.query(Usuario).filter_by(email=datos.email.strip().lower()).first()
+    if u and u.estado != "sin_verificar":
+        try:
+            codigos.emitir(db, u, "recuperar")
+        except HTTPException as e:
+            log.warning("Recuperar clave de %s no se envio: %s", u.email, e.detail)
+    return {"mensaje": "Si el correo tiene una cuenta, te enviamos un codigo para recuperar tu clave"}
+
+
+@app.post("/recuperar/confirmar")
+def recuperar_confirmar(datos: RecuperarConfirmarIn, db: Session = Depends(get_db)):
+    u = db.query(Usuario).filter_by(email=datos.email.strip().lower()).first()
+    if not u or u.estado == "sin_verificar":
+        raise HTTPException(400, "El codigo venció o no existe. Pide uno nuevo.")
+    codigos.validar(db, u, "recuperar", datos.codigo)
+    u.password_hash = hash_password(datos.nueva_clave)
+    db.commit()
+    return {"mensaje": "Clave actualizada. Ya puedes iniciar sesion."}
 
 
 @app.post("/login")
