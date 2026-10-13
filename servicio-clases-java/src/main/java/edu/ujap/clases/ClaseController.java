@@ -68,8 +68,9 @@ public class ClaseController {
   public List<Clase> listar(@RequestHeader(value = "Authorization", required = false) String h) {
     Claims u = auth.usuario(h);
     List<Clase> todas = repo.findAllByOrderBySemanaAscIdAsc();
-    if (auth.esProfesor(u)) return todas;
     Long uid = Long.valueOf(u.getSubject());
+    // El profesor ve solo los temas de SUS materias; el estudiante, los de sus secciones
+    if (auth.esProfesor(u)) return todas.stream().filter(c -> esMia(uid, c)).toList();
     return todas.stream().filter(c -> acceso.estaInscrito(uid, c)).toList();
   }
 
@@ -77,7 +78,8 @@ public class ClaseController {
   public Clase obtener(@PathVariable Long id, @RequestHeader(value = "Authorization", required = false) String h) {
     Claims u = auth.usuario(h);
     Clase c = buscar(id);
-    if (!auth.esProfesor(u) && !acceso.estaInscrito(Long.valueOf(u.getSubject()), c))
+    if (auth.esProfesor(u)) exigirDueno(u, c);
+    else if (!acceso.estaInscrito(Long.valueOf(u.getSubject()), c))
       throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Esta clase no es de tu seccion");
     return c;
   }
