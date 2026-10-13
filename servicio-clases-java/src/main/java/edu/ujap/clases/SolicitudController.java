@@ -1,6 +1,7 @@
 package edu.ujap.clases;
 
 import io.jsonwebtoken.Claims;
+import java.time.Instant;
 import java.util.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -138,5 +139,37 @@ public class SolicitudController {
       lista.addAll(solicitudes.findByEstudianteIdOrderByCreadaEnDesc(uid));
     }
     return lista.stream().filter(sol -> estado == null || estado.equalsIgnoreCase(sol.getEstado())).map(this::aMapa).toList();
+  }
+
+  // ----------------------------------------------------------------- aprobar o rechazar
+  @PutMapping("/solicitudes/{id}")
+  public Map<String, Object> resolver(@PathVariable Long id, @RequestBody ResolucionIn in,
+      @RequestHeader(value = "Authorization", required = false) String h) {
+    Claims u = auth.profesor(h);
+    Solicitud sol = solicitudes.findById(id)
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "La solicitud no existe"));
+    Seccion s = sol.getSeccion();
+    Materia m = s.getMateria();
+    acceso.exigirDueno(Long.valueOf(u.getSubject()), m);   // solo el profesor de esa materia decide
+    if (!"PENDIENTE".equals(sol.getEstado()))
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "Esa solicitud ya fue resuelta");
+    if (in.aprobar() == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Indica si apruebas o rechazas");
+
+    sol.setEstado(in.aprobar() ? "APROBADA" : "RECHAZADA");
+    sol.setResueltaEn(Instant.now());
+    solicitudes.save(sol);
+
+    if (in.aprobar()) {
+      s.getEstudiantes().add(sol.getEstudianteId());   // entra a la seccion
+      secciones.save(s);
+      // Java -> Node: recalcula quien ve cada clase publicada; el nuevo recibe sus preguntas
+      acceso.sincronizarMateria(m.getId());
+    }
+    notif.avisar(sol.getEstudianteId(), sol.getEstudianteEmail(), sol.getEstudianteNombre(),
+        in.aprobar() ? "Te aceptaron en " + m.getNombre() : "No te aceptaron en " + m.getNombre(),
+        in.aprobar() ? m.getProfesorNombre() + " aprobo tu inscripcion en " + s.getNombre() + ". Ya puedes ver sus clases."
+                     : m.getProfesorNombre() + " no aprobo tu inscripcion en " + s.getNombre() + ".",
+        "#/clases");
+    return aMapa(sol);
   }
 }
