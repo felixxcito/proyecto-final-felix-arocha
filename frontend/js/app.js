@@ -295,13 +295,13 @@ async function guardarConfiguracion(tema, cambios, mensaje) {
 }
 
 async function modalLista(tema) {
-  const [estudiantes, materias] = await Promise.all([API.get('auth/usuarios?rol=estudiante'), Secciones.materias(true)]);
-  const porId = new Map(estudiantes.filter((u) => u.activo).map((u) => [u.id, u]));
+  // Los inscritos (con nombre, cedula y correo) ya vienen dentro de cada seccion: Java los entrega al profesor dueno
+  const materias = await Secciones.materias(true);
   const materia = materias.find((x) => x.id === tema.materiaId);
   const secciones = (materia?.secciones || []).filter((s) => !tema.secciones?.length || tema.secciones.includes(s.id));
   const presentes = new Set(tema.asistentes || []);
   let actual = secciones[0];
-  const alumnos = (s) => s.estudiantes.map((id) => porId.get(id)).filter(Boolean).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  const alumnos = (s) => [...(s.estudiantesDetalle || [])].sort((a, b) => a.nombre.localeCompare(b.nombre));
 
   const m = document.createElement('div');
   m.className = 'modal';
@@ -318,7 +318,7 @@ async function modalLista(tema) {
         <button type="button" class="btn small" id="ninguno">Ninguno</button>
       </div>
       <div class="lista-asistencia" id="listaAlumnos"></div>`
-      : '<div class="estado">Esta materia no tiene secciones con estudiantes. Créalas en <a href="#/secciones">Secciones</a>.</div>'}
+      : '<div class="estado">Esta materia todavía no tiene secciones con estudiantes aprobados. Revisa tus <a href="#/solicitudes">solicitudes</a>.</div>'}
       <div class="row" style="justify-content:space-between;margin-top:1rem">
         <span class="muted" id="cuentaLista"></span>
         <div class="row"><button type="button" class="btn" data-cerrar>Cancelar</button>
@@ -337,7 +337,7 @@ async function modalLista(tema) {
     const lista = alumnos(actual);
     m.querySelector('#listaAlumnos').innerHTML = lista.map((u) => `
       <label class="asistente"><input type="checkbox" value="${u.id}" ${presentes.has(u.id) ? 'checked' : ''}>
-        <span class="grow"><strong>${esc(u.nombre)}</strong><br><span class="muted">${esc(u.email)}</span></span>
+        <span class="grow"><strong>${esc(u.nombre)}</strong><br><span class="muted">${esc(u.cedula || '')}${u.email ? ` · ${esc(u.email)}` : ''}</span></span>
         <span class="marca">${presentes.has(u.id) ? 'Presente' : 'Ausente'}</span></label>`).join('')
       || '<p class="muted" style="padding:1rem">No hay estudiantes inscritos en esta sección.</p>';
     m.querySelector('#filtroLista').value = '';
