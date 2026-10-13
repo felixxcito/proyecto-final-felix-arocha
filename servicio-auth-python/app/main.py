@@ -29,8 +29,8 @@ from .security import (
     hash_password,
     ALGORITHM,
     SECRET_KEY,
-    profesor_o_interno,
     solo_admin,
+    solo_interno,
     token_de,
     usuario_actual,
     verify_password,
@@ -277,7 +277,7 @@ def me(user: dict = Depends(usuario_actual), db: Session = Depends(get_db)):
 
 
 @app.get("/usuarios")
-def listar(rol: Optional[str] = None, _=Depends(profesor_o_interno), db: Session = Depends(get_db)):
+def listar(rol: Optional[str] = None, _=Depends(solo_interno), db: Session = Depends(get_db)):
     q = db.query(Usuario)
     if rol:
         q = q.filter_by(rol=rol)

@@ -56,13 +56,11 @@ def solo_admin(user: dict = Depends(usuario_actual)) -> dict:
     return user
 
 
-def profesor_o_interno(
-    authorization: str = Header(default=""), x_internal_token: str = Header(default="")
-) -> dict:
-    """Permite el acceso a un profesor o a otro microservicio con INTERNAL_TOKEN."""
-    if x_internal_token and x_internal_token == INTERNAL_TOKEN:
-        return {"rol": "interno"}
-    return solo_profesor(usuario_actual(authorization))
+def solo_interno(x_internal_token: str = Header(default="")) -> dict:
+    """Solo otro microservicio (con el INTERNAL_TOKEN del .env). Ningun usuario del navegador lo conoce."""
+    if not x_internal_token or x_internal_token != INTERNAL_TOKEN:
+        raise HTTPException(403, "Solo servicios internos")
+    return {"rol": "interno"}
 
 
 def token_de(authorization: str, uri_original: str) -> str | None:
