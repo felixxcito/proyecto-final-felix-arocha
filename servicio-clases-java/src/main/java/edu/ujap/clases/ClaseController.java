@@ -190,6 +190,7 @@ public class ClaseController {
     try {
       ia.post("/interno/procesar", Map.of(
           "claseId", id,
+          "profesorId", Long.valueOf(u.getSubject()),
           "titulo", c.getTitulo(),
           "descripcion", Optional.ofNullable(c.getDescripcion()).orElse(""),
           "nombreArchivo", nombre,
