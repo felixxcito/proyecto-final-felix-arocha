@@ -63,6 +63,7 @@ async function vistaClases() {
     .filter((b) => esProfe || b.temas.length);
 
   vista.innerHTML = `
+    ${esProfe ? '<div id="panelSolicitudes"></div>' : ''}
     <div class="page-head">
       <div>
         <h1>${esProfe ? 'Tus clases' : 'Mis clases'}</h1>
@@ -80,12 +81,18 @@ async function vistaClases() {
           : esc(m.secciones.map((x) => x.nombre).join(', '))}</span>
       </div>
       <div class="grid">${ts.map((t) => tarjetaClase(t, porClase.get(t.id), m)).join('') || '<p class="muted">Aún no hay temas en esta materia.</p>'}</div>
-    </section>`).join('') || `<p class="muted">${esProfe ? 'Crea una materia en Secciones para empezar.' : 'Todavía no estás inscrito en ninguna sección. Pídele a tu profesora que te inscriba.'}</p>`}`;
+    </section>`).join('') || `<div class="card estado">${esProfe ? 'Crea tu primera materia en <a href="#/secciones">Secciones</a>: agrega sus secciones y horarios para que los estudiantes puedan solicitar inscripción.'
+      : 'Todavía no estás inscrito en ninguna materia. Entra a <a href="#/inscribirme">Inscribirme</a>, elige a tu profesor y solicita tu sección.'}</div>`}`;
 
-  if (esProfe) document.getElementById('btnNuevo').onclick = () => modalTema();
+  if (esProfe) {
+    document.getElementById('btnNuevo').onclick = () => modalTema();
+    // Lo primero que ve el profesor: quien pide entrar a sus materias
+    Solicitudes.panel(document.getElementById('panelSolicitudes'));
+  }
 }
 
-const tengoAcceso = (t) => esProfe || (t.estado === 'PUBLICADA' && (!t.privada || (t.asistentes || []).includes(Number(yo.id))));
+// Al estudiante, Java le dice si tiene acceso (inscrito + publicada + presente si es privada): el frontend no reconstruye la regla
+const tengoAcceso = (t) => esProfe || t.acceso === true;
 
 function tarjetaClase(t, extra, materia) {
   const visible = tengoAcceso(t);
