@@ -37,7 +37,7 @@ const Solicitudes = (() => {
   }
 
   /** Recuadro "Solicitudes pendientes" para el inicio del profesor. No dibuja nada si no hay. */
-  async function panel(destino) {
+  async function panel(destino, alCambiar) {
     const pendientes = await API.get('clases/solicitudes?estado=PENDIENTE').catch(() => []);
     if (!pendientes.length) { destino.innerHTML = ''; return; }
     destino.innerHTML = `<div class="card avisos-solicitudes">
@@ -45,7 +45,8 @@ const Solicitudes = (() => {
       <p class="muted" style="margin-top:0">Estudiantes que pidieron inscribirse en tus secciones.</p>
       <div class="lista-solicitudes">${pendientes.map(tarjetaPendiente).join('')}</div>
     </div>`;
-    activarBotones(destino, () => panel(destino));
+    // Tras aprobar o rechazar se repinta toda la pantalla que lo contiene (los contadores de estudiantes cambian)
+    activarBotones(destino, alCambiar || (() => panel(destino)));
   }
 
   /** Pantalla "Solicitudes" del profesor: pendientes arriba e historial abajo. */

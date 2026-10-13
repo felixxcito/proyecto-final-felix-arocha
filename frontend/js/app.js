@@ -87,7 +87,7 @@ async function vistaClases() {
   if (esProfe) {
     document.getElementById('btnNuevo').onclick = () => modalTema();
     // Lo primero que ve el profesor: quien pide entrar a sus materias
-    Solicitudes.panel(document.getElementById('panelSolicitudes'));
+    Solicitudes.panel(document.getElementById('panelSolicitudes'), vistaClases);
   }
 }
 
