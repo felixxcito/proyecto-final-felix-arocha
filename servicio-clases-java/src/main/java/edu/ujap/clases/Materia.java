@@ -18,6 +18,12 @@ public class Materia {
   @Column(columnDefinition = "TEXT")
   private String descripcion;
 
+  /** Profesor dueno de la materia. Es el ID del usuario en el servicio de auth (referencia logica: otra base). */
+  private Long profesorId;
+  // Copia del nombre y el correo para mostrarlos a los estudiantes en el catalogo sin consultar a Python
+  private String profesorNombre;
+  private String profesorEmail;
+
   /** Relacion uno-a-muchos: al borrar la materia se borran sus secciones (cascade + orphanRemoval). */
   @OneToMany(mappedBy = "materia", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
   @OrderBy("nombre ASC")
@@ -30,5 +36,11 @@ public class Materia {
   public void setCodigo(String codigo) { this.codigo = codigo; }
   public String getDescripcion() { return descripcion; }
   public void setDescripcion(String descripcion) { this.descripcion = descripcion; }
+  public Long getProfesorId() { return profesorId; }
+  public void setProfesorId(Long profesorId) { this.profesorId = profesorId; }
+  public String getProfesorNombre() { return profesorNombre; }
+  public void setProfesorNombre(String profesorNombre) { this.profesorNombre = profesorNombre; }
+  public String getProfesorEmail() { return profesorEmail; }
+  public void setProfesorEmail(String profesorEmail) { this.profesorEmail = profesorEmail; }
   public List<Seccion> getSecciones() { return secciones; }
 }
