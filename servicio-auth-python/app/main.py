@@ -182,6 +182,31 @@ def registro(datos: RegistroIn, db: Session = Depends(get_db)):
     return {"mensaje": "Te enviamos un codigo de 6 digitos a tu correo", "email": email}
 
 
+@app.post("/registro/verificar")
+def registro_verificar(datos: VerificarIn, tareas: BackgroundTasks, db: Session = Depends(get_db)):
+    """Confirma el codigo del correo. Estudiante: queda activo y entra. Profesor: queda en lista de espera."""
+    u = db.query(Usuario).filter_by(email=datos.email.strip().lower()).first()
+    # Mismo mensaje exista o no el correo: no se revela que cuentas existen
+    if not u:
+        raise HTTPException(400, "El codigo venció o no existe. Pide uno nuevo.")
+    if u.estado != "sin_verificar":
+        raise HTTPException(409, "Esta cuenta ya esta verificada. Inicia sesion.")
+
+    codigos.validar(db, u, "verificar", datos.codigo)
+    u.email_verificado = True
+    if u.rol == "estudiante":
+        u.estado = "activo"
+        db.commit()
+        return {"token": crear_token(u), "usuario": a_json(u), "estado": "activo"}
+
+    u.estado = "en_espera"  # profesor: necesita que un admin lo apruebe
+    db.commit()
+    admins = [a_json(a) for a in db.query(Usuario).filter_by(rol="admin", estado="activo").all()]
+    tareas.add_task(avisar_nuevo_profesor, a_json(u), admins)
+    return {"estado": "en_espera",
+            "mensaje": "Correo confirmado. Un administrador debe aprobar tu cuenta de profesor; te avisaremos por correo."}
+
+
 @app.post("/login")
 def login(datos: LoginIn, db: Session = Depends(get_db)):
     u = db.query(Usuario).filter_by(email=datos.email.strip().lower()).first()
