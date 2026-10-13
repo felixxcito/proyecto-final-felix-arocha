@@ -100,7 +100,7 @@ const Solicitudes = (() => {
       <div class="page-head"><div><h1>Inscribirme</h1>
         <p class="muted" style="margin:0">Elige la materia y la sección de tu profesor. Cuando él te apruebe, verás sus clases en "Mis clases".</p></div></div>
       ${[...porProfesor].map(([profesor, ms]) => `<section class="bloque-materia">
-        <h2 style="margin-bottom:.7rem">👩‍🏫 ${esc(profesor || 'Profesor')}</h2>
+        <h2 style="margin-bottom:.7rem">📚 ${esc(profesor || 'Profesor')}</h2>
         <div class="grid">${ms.map((m) => `<div class="card">
           <h3 style="margin-bottom:.1rem">${esc(m.nombre)}</h3>
           <span class="semana" style="font-family:var(--mono);color:var(--accent);font-size:.78rem">${esc(m.codigo || '')}</span>
