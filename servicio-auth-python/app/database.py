@@ -2,7 +2,7 @@
 import os
 
 from dotenv import load_dotenv
-from sqlalchemy import Boolean, Column, DateTime, Integer, String, create_engine, func
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, create_engine, func
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 load_dotenv()  # en Docker las variables ya vienen de env_file: .env
@@ -34,6 +34,21 @@ class Usuario(Base):
     def activo(self) -> bool:
         """Solo una cuenta en estado 'activo' puede entrar al sistema."""
         return self.estado == "activo"
+
+
+class Codigo(Base):
+    """Codigo de 6 digitos enviado por correo (para verificar la cuenta o recuperar la clave)."""
+    __tablename__ = "codigos"
+
+    id = Column(Integer, primary_key=True)
+    # Clave foranea real: aqui si, ambas tablas estan en la misma base (auth_db)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True)
+    proposito = Column(String(20), nullable=False)          # verificar | recuperar
+    codigo_hash = Column(String(64), nullable=False)        # sha256: el codigo en claro nunca se guarda
+    expira_en = Column(DateTime(timezone=True), nullable=False)
+    intentos = Column(Integer, nullable=False, default=0)   # intentos fallidos (maximo 5)
+    usado = Column(Boolean, nullable=False, default=False)
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
 
 def get_db():
