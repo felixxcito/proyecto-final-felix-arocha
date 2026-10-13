@@ -11,6 +11,7 @@ Gateway: https://localhost/api/auth/...
 """
 import logging
 import os
+import re
 from typing import Optional
 
 import httpx
@@ -66,6 +67,28 @@ class UsuarioIn(BaseModel):
     password: str = Field(min_length=6)
     rol: str = Field(default="estudiante", pattern="^(estudiante|profesor)$")
     secciones: list[int] = []  # secciones (servicio de clases) donde se inscribe al estudiante
+
+
+class RegistroIn(BaseModel):
+    """Alguien se registra solo (estudiante o profesor). Nunca puede registrarse como admin."""
+    nombre: str = Field(min_length=2, max_length=120)
+    cedula: str
+    email: str = Field(pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$", max_length=160)
+    password: str = Field(min_length=8, max_length=72)  # bcrypt solo lee los primeros 72 bytes
+    rol: str = Field(pattern="^(estudiante|profesor)$")
+
+
+def normalizar_cedula(texto: str) -> str:
+    """'v12345678', 'V-12.345.678' o '12345678' -> 'V-12345678'. Sin letra se asume venezolano (V)."""
+    m = re.fullmatch(r"([VvEe])?-?(\d{6,9})", texto.strip().replace(".", "").replace(" ", ""))
+    if not m:
+        raise HTTPException(422, "La cedula debe tener entre 6 y 9 digitos (ej. V-12345678)")
+    return f"{(m.group(1) or 'V').upper()}-{m.group(2)}"
+
+
+class VerificarIn(BaseModel):
+    email: str
+    codigo: str = Field(min_length=6, max_length=6)
 
 
 class UsuarioPatch(BaseModel):
