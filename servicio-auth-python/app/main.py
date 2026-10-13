@@ -381,3 +381,11 @@ def admin_aprobar(uid: int, tareas: BackgroundTasks, _=Depends(solo_admin), db: 
 @app.post("/admin/profesores/{uid}/rechazar")
 def admin_rechazar(uid: int, tareas: BackgroundTasks, _=Depends(solo_admin), db: Session = Depends(get_db)):
     return resolver_profesor(uid, False, tareas, db)
+
+
+@app.get("/admin/usuarios")
+def admin_usuarios(rol: Optional[str] = None, _=Depends(solo_admin), db: Session = Depends(get_db)):
+    q = db.query(Usuario)
+    if rol:
+        q = q.filter_by(rol=rol)
+    return [a_json(u) for u in q.order_by(Usuario.rol, Usuario.nombre).all()]
