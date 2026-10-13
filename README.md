@@ -143,15 +143,24 @@ Después de cambiar el `.env`: `docker compose up -d` (recrea los servicios con 
 
 ### Correo
 
-Por defecto los correos van a **Mailpit** (http://localhost:8025), así se pueden ver sin configurar nada. Para enviar correos reales con Gmail:
+El sistema **envía correos de verdad** (códigos de verificación, recuperación de clave, solicitudes y avisos). Por defecto los manda a **Mailpit** (http://localhost:8025), una bandeja de prueba: así se puede evaluar todo sin configurar nada, leyendo el código ahí.
+
+Para que lleguen a bandejas reales (por ejemplo Gmail):
+
+1. En tu cuenta de Google activa la **verificación en 2 pasos** y crea una **contraseña de aplicación** (Cuenta de Google → Seguridad → Contraseñas de aplicaciones).
+2. Edita el `.env` (con el puerto **587**; el 465 no funciona con este servicio):
 
 ```
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=sucorreo@gmail.com
-SMTP_PASS=<contraseña de aplicación de Google>
+SMTP_PASS=<contraseña de aplicación de 16 letras>
 SMTP_FROM=Aula Virtual LPR <sucorreo@gmail.com>
 ```
+
+3. `docker compose up -d` (recrea los servicios con la nueva configuración).
+
+Si el correo no se puede enviar, el registro responde con un error claro (no deja una cuenta imposible de verificar).
 
 ### Seguridad
 
