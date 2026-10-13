@@ -53,6 +53,8 @@ public class MateriaController {
     Long uid = Long.valueOf(u.getSubject());
     List<Map<String, Object>> resultado = new ArrayList<>();
     for (Materia m : materias.findAllByOrderByNombreAsc()) {
+      // Un profesor solo ve SUS materias (las de otros profesores no existen para el)
+      if (profe && !Objects.equals(m.getProfesorId(), uid)) continue;
       // El estudiante solo ve sus secciones y no ve la lista de compañeros
       List<Map<String, Object>> secs = m.getSecciones().stream()
           .filter(s -> profe || s.getEstudiantes().contains(uid))
@@ -71,6 +73,7 @@ public class MateriaController {
       x.put("nombre", m.getNombre());
       x.put("codigo", m.getCodigo());
       x.put("descripcion", m.getDescripcion());
+      x.put("profesorNombre", m.getProfesorNombre());
       x.put("secciones", secs);
       resultado.add(x);
     }
