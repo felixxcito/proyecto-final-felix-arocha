@@ -32,9 +32,10 @@ const { usuariosPorRol, actualizarEstadoClase, notificar } = require('./servicio
 const app = express();
 app.use(express.json({ limit: '80mb' }));  // la presentacion llega en base64
 
-/** El profesor y los estudiantes permitidos (seccion + lista de asistencia, segun Java) pueden ver la clase. */
-const tieneAcceso = (c, usuario) => usuario.rol === 'profesor'
-  || (c.publicado && (c.permitidos || []).includes(usuario.id));
+/** El profesor dueno y los estudiantes permitidos (seccion + lista de asistencia, segun Java) pueden ver la clase. */
+const tieneAcceso = (c, usuario) => (usuario.rol === 'profesor'
+  ? c.profesorId === usuario.id                      // un profesor solo ve SUS clases
+  : c.publicado && (c.permitidos || []).includes(usuario.id));
 const sinAcceso = (c) => (c.privada ? 'Clase privada: pidele acceso a tu profesor' : 'No tienes acceso a esta clase');
 
 // ------------------------------------------------------------------ middlewares
