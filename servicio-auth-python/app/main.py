@@ -48,13 +48,13 @@ def iniciar():
         email = os.getenv("ADMIN_EMAIL", "").strip().lower()
         if email and not db.query(Usuario).filter_by(email=email).first():
             db.add(Usuario(
-                nombre=os.getenv("ADMIN_NOMBRE", "Profesor"),
+                nombre=os.getenv("ADMIN_NOMBRE", "Administrador"),
                 email=email,
                 password_hash=hash_password(os.getenv("ADMIN_PASSWORD", "cambiame")),
-                rol="profesor", email_verificado=True, estado="activo",
+                rol="admin", email_verificado=True, estado="activo",
             ))
             db.commit()
-            log.info("Usuario inicial creado: %s", email)
+            log.info("Administrador creado: %s", email)
 
 
 # ----------------------------------------------------------------- esquemas
