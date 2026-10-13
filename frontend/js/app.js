@@ -1,13 +1,14 @@
-// Aplicacion principal (SPA con rutas por hash): #/clases, #/clase/:id, #/secciones, #/usuarios
+// Aplicacion principal (SPA con rutas por hash): #/clases, #/clase/:id, #/secciones, #/solicitudes, #/inscribirme, #/admin
 if (!API.token) location.href = '/';
 
 const yo = API.usuario;
 const esProfe = yo?.rol === 'profesor';
+const esAdmin = yo?.rol === 'admin';
 const vista = document.getElementById('vista');
 let temporizador = null; // para refrescar mientras la IA procesa
 
 document.getElementById('nombreUsuario').textContent = yo?.nombre || '';
-document.getElementById('rolUsuario').textContent = esProfe ? 'Profesor' : 'Estudiante';
+document.getElementById('rolUsuario').textContent = esAdmin ? 'Administrador' : esProfe ? 'Profesor' : 'Estudiante';
 
 const ESTADOS = {
   SIN_MATERIAL: ['Sin presentacion', ''],
@@ -20,23 +21,27 @@ const badgeEstado = (e) => `<span class="badge ${ESTADOS[e]?.[1] || ''}">${ESTAD
 
 // ------------------------------------------------------------------ router
 function pintarNav(ruta) {
-  const links = [['#/clases', 'Clases']];
-  if (esProfe) links.push(['#/secciones', 'Secciones'], ['#/usuarios', 'Usuarios']);
+  // Cada rol ve solo su menu
+  const links = esAdmin ? [['#/admin', 'Administración']]
+    : esProfe ? [['#/clases', 'Clases'], ['#/secciones', 'Secciones'], ['#/solicitudes', 'Solicitudes']]
+      : [['#/clases', 'Mis clases'], ['#/inscribirme', 'Inscribirme']];
   links.push(['/como-lo-hicimos.html', 'Cómo lo construimos']);
   document.getElementById('nav').innerHTML = links
-    .map(([href, txt]) => `<a href="${href}" class="${ruta.startsWith(href.slice(1, 6)) ? 'active' : ''}">${txt}</a>`).join('');
+    .map(([href, txt]) => `<a href="${href}" class="${href.startsWith('#') && ruta.startsWith(href.slice(1)) ? 'active' : ''}">${txt}</a>`).join('');
 }
 
 async function router() {
   clearTimeout(temporizador);
-  const ruta = location.hash.slice(1) || '/clases';
+  const ruta = location.hash.slice(1) || (esAdmin ? '/admin' : '/clases');
   pintarNav(ruta);
   window.scrollTo(0, 0);
   try {
     const m = ruta.match(/^\/clase\/(\d+)(?:\/(\w+))?/);
     if (m) await vistaClase(Number(m[1]), m[2]);
-    else if (ruta.startsWith('/usuarios') && esProfe) await vistaUsuarios();
+    else if (esAdmin) await Admin.vista(vista);
     else if (ruta.startsWith('/secciones') && esProfe) await Secciones.vista(vista);
+    else if (ruta.startsWith('/solicitudes') && esProfe) await Solicitudes.vistaProfesor(vista);
+    else if (ruta.startsWith('/inscribirme') && !esProfe) await Solicitudes.vistaCatalogo(vista);
     else await vistaClases();
   } catch (e) {
     vista.innerHTML = `<div class="card estado err">${esc(e.message)}</div>`;
