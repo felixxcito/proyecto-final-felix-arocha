@@ -166,6 +166,15 @@ Si el correo no se puede enviar, el registro responde con un error claro (no dej
 
 Cambie `SECRET_KEY` (mínimo 32 caracteres), `INTERNAL_TOKEN`, `DB_PASS` y `ADMIN_PASSWORD`. Si cambia `DB_USER`/`DB_PASS` actualice también las tres `DATABASE_URL_*`.
 
+Lo que ya protege el sistema:
+
+- Claves con **bcrypt**; los códigos de correo se guardan **hasheados**, vencen en 10 minutos y se bloquean a los 5 intentos fallidos.
+- **Un profesor solo ve y modifica lo suyo** (materias, secciones, temas, solicitudes, respuestas y dudas): los demás reciben 403.
+- El gateway **limita a 10 intentos por minuto** el ingreso, el registro y la recuperación de clave (responde 429).
+- Una cuenta **desactivada o eliminada pierde el acceso al instante**, aunque tenga un token vigente.
+- Las rutas `/interno/*` solo existen entre servicios (404 desde el navegador) y además exigen el `INTERNAL_TOKEN`.
+- Un estudiante solo recibe los datos que le corresponden (sin listas de asistentes, sin temas sin publicar).
+
 > Las bases de datos se crean la primera vez que se crea el volumen. Para empezar de cero: `docker compose down -v`.
 
 ## Recorrido sugerido para evaluar
