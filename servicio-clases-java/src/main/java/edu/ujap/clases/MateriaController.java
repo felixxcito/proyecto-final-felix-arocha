@@ -151,8 +151,9 @@ public class MateriaController {
   @PutMapping("/secciones/{id}/estudiantes")
   public Seccion inscribir(@PathVariable Long id, @RequestBody EstudiantesIn in,
       @RequestHeader(value = "Authorization", required = false) String h) {
-    auth.profesor(h);
+    Claims u = auth.profesor(h);
     Seccion s = seccion(id);
+    acceso.exigirDueno(Long.valueOf(u.getSubject()), s.getMateria());
     s.setEstudiantes(new HashSet<>(Optional.ofNullable(in.estudiantes()).orElse(List.of())));
     secciones.save(s);
     acceso.sincronizarMateria(s.getMateriaId());
