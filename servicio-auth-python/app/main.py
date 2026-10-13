@@ -100,8 +100,8 @@ class UsuarioPatch(BaseModel):
 
 def a_json(u: Usuario) -> dict:
     # password_hash jamas sale del servicio
-    return {"id": u.id, "nombre": u.nombre, "email": u.email, "rol": u.rol,
-            "activo": u.activo, "creado_en": u.creado_en.isoformat() if u.creado_en else None}
+    return {"id": u.id, "nombre": u.nombre, "email": u.email, "cedula": u.cedula, "rol": u.rol,
+            "estado": u.estado, "activo": u.activo, "creado_en": u.creado_en.isoformat() if u.creado_en else None}
 
 
 # ----------------------------------------------------------------- comunicacion con otros servicios
