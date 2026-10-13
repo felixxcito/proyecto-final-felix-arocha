@@ -53,6 +53,20 @@ public class ClaseController {
     this.uploads = Files.createDirectories(Path.of(uploads));
   }
 
+  /**
+   * Lo unico que un estudiante necesita saber de un tema. A proposito NO incluye asistentes, secciones ni
+   * rutas del servidor: antes se serializaba la entidad completa y el estudiante recibia los ids de los
+   * presentes y los temas todavia sin publicar.
+   */
+  record TemaEstudiante(Long id, Integer semana, String titulo, String descripcion, Long materiaId, String estado,
+      boolean privada, String archivoNombre, String archivoTipo, String vistaEstado, boolean acceso) {}
+
+  private TemaEstudiante paraEstudiante(Clase c, Long uid) {
+    return new TemaEstudiante(c.getId(), c.getSemana(), c.getTitulo(), c.getDescripcion(), c.getMateriaId(),
+        c.getEstado(), c.isPrivada(), c.getArchivoNombre(), c.getArchivoTipo(), c.getVistaEstado(),
+        acceso.puedeVer(uid, c));
+  }
+
   record TemaIn(Integer semana, String titulo, String descripcion, Long materiaId, List<Long> secciones) {}
   record EstadoIn(String estado, String mensaje) {}
   record ConfiguracionIn(Boolean privada, List<Long> asistentes, Integer preguntasPorEstudiante) {}
