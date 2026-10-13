@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 
 from . import codigos
 from .database import Base, SessionLocal, Usuario, engine, get_db
+from .dominio_correo import dominio_recibe_correo
 from .security import (
     INTERNAL_TOKEN,
     crear_token,
@@ -162,6 +163,8 @@ def registro(datos: RegistroIn, db: Session = Depends(get_db)):
     """Crea la cuenta SIN verificar y envia un codigo al correo. Sin el codigo no se puede entrar."""
     email = datos.email.strip().lower()
     cedula = normalizar_cedula(datos.cedula)
+    if not dominio_recibe_correo(email):
+        raise HTTPException(422, "Ese dominio de correo no existe o no recibe mensajes. Revisa que lo escribiste bien (ej. nombre@gmail.com)")
 
     existente = db.query(Usuario).filter_by(email=email).first()
     if existente and existente.estado != "sin_verificar":
