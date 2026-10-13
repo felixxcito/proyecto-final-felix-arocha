@@ -39,6 +39,12 @@ public class Auth {
     return c;
   }
 
+  public Claims estudiante(String header) {
+    Claims c = usuario(header);
+    if (!"estudiante".equals(c.get("rol", String.class))) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Solo un estudiante");
+    return c;
+  }
+
   public void interno(String token) {
     if (token == null || !token.equals(internalToken))
       throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Solo servicios internos");
