@@ -353,9 +353,11 @@ app.post('/clases/:id/consultas', conToken, h(async (req, res) => {
 
 app.get('/clases/:id/consultas', conToken, h(async (req, res) => {
   const filtro = { claseId: Number(req.params.id) };
-  // El profesor ve las dudas de todos los estudiantes; cada estudiante solo las suyas
-  if (req.usuario.rol === 'profesor') filtro.rol = 'estudiante';
-  else filtro.usuarioId = req.usuario.id;
+  // El profesor (dueno de la clase) ve las dudas de todos los estudiantes; cada estudiante solo las suyas
+  if (req.usuario.rol === 'profesor') {
+    if (!await claseDelProfesor(req, res, 'profesorId')) return;
+    filtro.rol = 'estudiante';
+  } else filtro.usuarioId = req.usuario.id;
   res.json(await Consulta.find(filtro).sort('createdAt'));
 }));
 
