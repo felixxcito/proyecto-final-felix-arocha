@@ -345,3 +345,39 @@ def admin_profesores(estado: Optional[str] = None, _=Depends(solo_admin), db: Se
     if estado:
         q = q.filter_by(estado=estado)
     return [a_json(u) for u in q.order_by(Usuario.creado_en).all()]
+
+
+def resolver_profesor(uid: int, aprobar: bool, tareas: BackgroundTasks, db: Session) -> dict:
+    u = db.get(Usuario, uid)
+    if not u or u.rol != "profesor":
+        raise HTTPException(404, "Profesor no existe")
+    if u.estado != "en_espera":
+        raise HTTPException(409, "Este profesor no esta en la lista de espera")
+    u.estado = "activo" if aprobar else "rechazado"
+    db.commit()
+    tareas.add_task(avisar_resolucion, a_json(u), aprobar)
+    return a_json(u)
+
+
+def avisar_resolucion(profesor: dict, aprobado: bool):
+    """Python -> Go: le cuenta al profesor (campanita + correo) lo que decidio el admin."""
+    try:
+        httpx.post(f"{NOTIF_URL}/interno/notificar", headers={"X-Internal-Token": INTERNAL_TOKEN}, timeout=10, json={
+            "usuarioId": profesor["id"], "email": profesor["email"], "nombre": profesor["nombre"],
+            "titulo": "Tu cuenta de profesor fue aprobada" if aprobado else "Tu cuenta de profesor no fue aprobada",
+            "mensaje": "Ya puedes iniciar sesion, crear tus materias y secciones y recibir solicitudes de estudiantes."
+                       if aprobado else "Un administrador no aprobo tu solicitud de cuenta de profesor.",
+            "enlace": PUBLIC_URL, "enviarCorreo": True,
+        })
+    except httpx.HTTPError as e:
+        log.warning("No se pudo avisar al profesor %s: %s", profesor["email"], e)
+
+
+@app.post("/admin/profesores/{uid}/aprobar")
+def admin_aprobar(uid: int, tareas: BackgroundTasks, _=Depends(solo_admin), db: Session = Depends(get_db)):
+    return resolver_profesor(uid, True, tareas, db)
+
+
+@app.post("/admin/profesores/{uid}/rechazar")
+def admin_rechazar(uid: int, tareas: BackgroundTasks, _=Depends(solo_admin), db: Session = Depends(get_db)):
+    return resolver_profesor(uid, False, tareas, db)
