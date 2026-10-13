@@ -21,7 +21,6 @@ import org.springframework.web.server.ResponseStatusException;
  *   DELETE /secciones/{id}                 -> eliminar seccion
  *   DELETE /secciones/{id}/estudiantes/{eid} -> dar de baja a un estudiante
  * Internos (Python -> Java):
- *   POST   /interno/inscribir              -> inscribir un estudiante recien creado
  *   DELETE /interno/estudiantes/{id}       -> sacar a un estudiante eliminado de sus secciones
  */
 @RestController
@@ -45,7 +44,6 @@ public class MateriaController {
 
   record MateriaIn(String nombre, String codigo, String descripcion) {}
   record SeccionIn(String nombre, String horario) {}
-  record InscripcionIn(Long estudianteId, List<Long> secciones) {}
 
   // ----------------------------------------------------------------- materias
   @GetMapping("/materias")
@@ -190,22 +188,6 @@ public class MateriaController {
   }
 
   // ----------------------------------------------------------------- internos (Python -> Java)
-  @PostMapping("/interno/inscribir")
-  public Map<String, Object> inscribirInterno(@RequestBody InscripcionIn in,
-      @RequestHeader(value = "X-Internal-Token", required = false) String t) {
-    auth.interno(t);
-    Set<Long> materiasTocadas = new HashSet<>();
-    for (Long sid : Optional.ofNullable(in.secciones()).orElse(List.of())) {
-      secciones.findById(sid).ifPresent(s -> {
-        s.getEstudiantes().add(in.estudianteId());
-        secciones.save(s);
-        materiasTocadas.add(s.getMateriaId());
-      });
-    }
-    materiasTocadas.forEach(acceso::sincronizarMateria);
-    return Map.of("materias", materiasTocadas.size());
-  }
-
   @DeleteMapping("/interno/estudiantes/{id}")
   public ResponseEntity<Void> sacarEstudiante(@PathVariable Long id,
       @RequestHeader(value = "X-Internal-Token", required = false) String t) {
