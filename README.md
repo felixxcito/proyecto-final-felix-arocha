@@ -107,7 +107,7 @@ La primera vez tarda unos minutos (Maven descarga dependencias de Java). Cuando 
 | Cómo lo construimos + estado en vivo | https://localhost/como-lo-hicimos.html |
 | Bandeja de correos (Mailpit) | http://localhost:8025 |
 
-**Usuario profesora:** el que esté en `ADMIN_EMAIL` / `ADMIN_PASSWORD` del `.env` (por defecto `profesora@ujap.edu.ve` / `Profe2026!`).
+**Administrador general:** el que esté en `ADMIN_EMAIL` / `ADMIN_PASSWORD` del `.env` (por defecto `admin@ujap.edu.ve` / `Admin2026!`). Es la única cuenta que existe al empezar: los profesores y estudiantes se **registran solos** desde la pantalla de ingreso. Los códigos de verificación llegan al correo (con el SMTP por defecto, a la bandeja de Mailpit).
 
 > **HTTPS y certificado.** El gateway sirve la plataforma por HTTPS (puerto 443) con un certificado **autofirmado** que se genera al construir la imagen, y el puerto 80 redirige a HTTPS. La primera vez el navegador mostrará *"Tu conexión no es privada"*: pulsa **Avanzado → Continuar a localhost** (es normal con certificados locales; en producción se usaría uno real, por ejemplo de Let's Encrypt). Con `curl` usa la opción `-k`.
 >
