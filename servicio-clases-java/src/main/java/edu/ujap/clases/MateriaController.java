@@ -105,6 +105,7 @@ public class MateriaController {
     return materias.save(m);
   }
 
+  @Transactional
   @DeleteMapping("/materias/{id}")
   public ResponseEntity<Void> eliminar(@PathVariable Long id, @RequestHeader(value = "Authorization", required = false) String h) {
     Claims u = auth.profesor(h);
@@ -112,6 +113,7 @@ public class MateriaController {
     acceso.exigirDueno(Long.valueOf(u.getSubject()), m);
     if (clases.existsByMateriaId(id))
       throw new ResponseStatusException(HttpStatus.CONFLICT, "La materia tiene temas: muevelos o eliminalos primero");
+    for (Seccion s : m.getSecciones()) solicitudes.deleteBySeccion_Id(s.getId());
     materias.delete(m);
     return ResponseEntity.noContent().build();
   }
