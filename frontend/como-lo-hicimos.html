@@ -270,7 +270,7 @@ asignacionSchema.index({ claseId: 1, estudianteId: 1 }, { unique: <span class="k
           <div class="qcp">
             <div class="card"><h4>Qué es</h4><p>Un archivo <code>.env</code> con credenciales y configuración que se inyecta a cada contenedor con <code>env_file</code>.</p></div>
             <div class="card"><h4>Cómo lo usamos</h4><p>En el repo solo está <code>.env.example</code>. Ahí van las claves de BD, el JWT, la API key de la IA y el SMTP.</p></div>
-            <div class="card"><h4>Por qué</h4><p>Nunca subimos secretos a GitHub (<code>.env</code> está en <code>.gitignore</code>) y la profesora configura el sistema sin tocar código.</p></div>
+            <div class="card"><h4>Por qué</h4><p>Nunca subimos secretos a GitHub (<code>.env</code> está en <code>.gitignore</code>) y quien lo evalúa configura el sistema sin tocar código.</p></div>
           </div>
 <pre class="code"><span class="c"># Python</span>   DATABASE_URL = os.getenv(<span class="k">"DATABASE_URL_AUTH"</span>)
 <span class="c"># Node</span>     mongoose.connect(process.env.MONGO_URL)
@@ -299,18 +299,19 @@ location /api/clases/ {
         <section class="bloque" id="comunicacion">
           <h2><span class="n">09</span>Comunicación entre microservicios</h2>
           <p>Las llamadas internas viajan por la red de Docker (<code>http://servicio-ia:3000</code>, etc.) y se autentican con el header
-            <code>X-Internal-Token</code> definido en el <code>.env</code>. Ejemplo completo cuando la profesora sube y publica una clase:</p>
+            <code>X-Internal-Token</code> definido en el <code>.env</code>. Ejemplo completo cuando un profesor sube y publica una clase:</p>
           <ol class="flujo">
             <li><strong>Frontend → Java</strong>: <code>POST /api/clases/temas/12/presentacion</code> con el PDF/PPTX.</li>
             <li><strong>Java → Node</strong>: <code>POST servicio-ia:3000/interno/procesar</code> con el archivo en base64. Node responde 202 y trabaja en segundo plano.</li>
             <li><strong>Node → IA externa</strong>: extrae el texto de cada diapositiva y pide las explicaciones (NVIDIA NIM o Gemini).</li>
             <li><strong>Node → Java</strong>: <code>PATCH servicio-clases:8080/interno/temas/12/estado</code> → la clase pasa a BORRADOR.</li>
-            <li><strong>Frontend → Java</strong>: la profesora revisa y pulsa <em>Publicar</em> → <strong>Java → Node</strong> <code>/interno/asignar</code>.</li>
+            <li><strong>Frontend → Java</strong>: el profesor revisa y pulsa <em>Publicar</em> → <strong>Java → Node</strong> <code>/interno/asignar</code>.</li>
             <li><strong>Node → Python</strong>: <code>GET servicio-auth:8000/usuarios?rol=estudiante</code> para saber a quién asignar.</li>
             <li><strong>Node → Go</strong>: <code>POST servicio-notificaciones:8080/interno/notificar</code> por cada estudiante → campanita + correo.</li>
             <li><strong>Java → LibreOffice</strong> (dentro del contenedor): si es PPTX lo convierte a PDF para el visor, sin bloquear la subida.</li>
-            <li>Cuando un estudiante entrega, <strong>Node → Python</strong> busca a la profesora y <strong>Node → Go</strong> le avisa.</li>
-            <li>Cuando la profesora crea un estudiante, <strong>Python → Java</strong> lo inscribe en su sección, <strong>Java → Node</strong> le asigna las preguntas de las clases ya publicadas y <strong>Python → Go</strong> le da la bienvenida.</li>
+            <li>Cuando un estudiante entrega, <strong>Node → Python</strong> busca al profesor dueño de la clase y <strong>Node → Go</strong> le avisa solo a él.</li>
+            <li>Cuando alguien se registra, <strong>Python → Go</strong> <code>POST /interno/correo</code> envía el código de 6 dígitos y <em>espera</em> el resultado (si el correo no sale, se lo dice al usuario).</li>
+            <li>Cuando un estudiante solicita inscribirse, <strong>Java → Go</strong> avisa al profesor; al aprobarlo, <strong>Java</strong> lo agrega a la sección, <strong>Java → Node</strong> le asigna las preguntas de las clases ya publicadas y <strong>Java → Go</strong> le avisa.</li>
             <li>Cada vez que cambian las secciones o la lista de asistencia, <strong>Java</strong> calcula quién tiene acceso y se lo envía a <strong>Node</strong>.</li>
           </ol>
           <p>Además los 4 servicios validan el mismo <strong>JWT</strong> (firmado con <code>SECRET_KEY</code>) sin tener que consultar al servicio de auth en cada petición.</p>
@@ -320,9 +321,9 @@ location /api/clases/ {
         <section class="bloque" id="seguridad">
           <h2><span class="n">10</span>Login y claves encriptadas</h2>
           <div class="qcp">
-            <div class="card"><h4>bcrypt</h4><p>La clave se guarda como hash con sal aleatoria. Ni la base de datos ni la profesora pueden leerla; solo se puede verificar.</p></div>
+            <div class="card"><h4>bcrypt</h4><p>La clave se guarda como hash con sal aleatoria. Ni la base de datos ni el administrador pueden leerla; solo se puede verificar.</p></div>
             <div class="card"><h4>JWT</h4><p>Al iniciar sesión Python firma un token con id, nombre y rol, válido 12 horas. El frontend lo envía en <code>Authorization: Bearer</code>.</p></div>
-            <div class="card"><h4>Roles</h4><p>Solo la profesora crea usuarios, sube presentaciones y ve respuestas. Cada servicio verifica el rol del token.</p></div>
+            <div class="card"><h4>Roles</h4><p>Tres roles: administrador, profesor y estudiante. El profesor solo ve y modifica lo suyo (403 si es de otro). Cada servicio verifica el rol <em>y</em> la pertenencia con lo que dice el token firmado.</p></div>
           </div>
 <pre class="code"><span class="k">def</span> hash_password(password):
     <span class="k">return</span> bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
@@ -342,10 +343,10 @@ location /api/clases/ {
             <div class="card"><h4>Visor de diapositivas</h4><p>Java convierte el PPTX a PDF con LibreOffice (en segundo plano) y el navegador dibuja cada página con pdf.js junto a la explicación.</p></div>
             <div class="card"><h4>Pregúntale a la IA</h4><p>El chat envía la pregunta con el texto y la explicación de la diapositiva actual y las últimas dudas del alumno, para que la respuesta tenga contexto.</p></div>
             <div class="card"><h4>Clases privadas</h4><p>La lista de asistencia se guarda en Postgres (tabla <code>clase_asistente</code>, con <code>@ElementCollection</code> de JPA). Java se la envía a Node, que solo asigna preguntas y da acceso a los presentes.</p></div>
-            <div class="card"><h4>Dudas para la profesora</h4><p>Cada pregunta se guarda en MongoDB (colección <code>consultas</code>). La profesora las ve por alumno y sabe qué diapositivas generan más dudas.</p></div>
+            <div class="card"><h4>Dudas para el profesor</h4><p>Cada pregunta se guarda en MongoDB (colección <code>consultas</code>). El profesor las ve por alumno y sabe qué diapositivas generan más dudas.</p></div>
           </div>
           <p>El proveedor se elige en el <code>.env</code> con <code>IA_PROVIDER</code>: <strong>NVIDIA NIM</strong> (key gratuita en build.nvidia.com, API compatible con OpenAI) o <strong>Google Gemini</strong>.
-            La profesora siempre puede corregir lo que escribió la IA antes de publicar.</p>
+            El profesor siempre puede corregir lo que escribió la IA antes de publicar.</p>
         </section>
 
         <!-- ============================================================ -->
@@ -357,7 +358,7 @@ docker compose up --build
 
 <span class="c"># Plataforma:    https://localhost  (acepta el certificado local la primera vez)</span>
 <span class="c"># Correos:       http://localhost:8025   (Mailpit)</span>
-<span class="c"># Profesora:     ADMIN_EMAIL / ADMIN_PASSWORD del .env</span></pre>
+<span class="c"># Administrador: ADMIN_EMAIL / ADMIN_PASSWORD del .env (los demás se registran solos)</span></pre>
         </section>
       </div>
     </div>
