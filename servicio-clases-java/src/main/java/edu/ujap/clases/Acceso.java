@@ -4,7 +4,9 @@ import java.util.*;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Reglas de acceso de los estudiantes a una clase:
@@ -22,6 +24,12 @@ public class Acceso {
     this.secciones = secciones;
     this.clases = clases;
     this.ia = ia;
+  }
+
+  /** Un profesor solo puede tocar lo que es suyo: 403 si la materia pertenece a otro. */
+  public void exigirDueno(Long profesorId, Materia m) {
+    if (m == null || !Objects.equals(m.getProfesorId(), profesorId))
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Esta materia no es tuya");
   }
 
   /** Secciones para las que es visible la clase: las elegidas, o todas las de su materia. */
