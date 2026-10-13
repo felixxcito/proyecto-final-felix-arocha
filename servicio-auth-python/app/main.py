@@ -16,6 +16,7 @@ from typing import Optional
 
 import httpx
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -225,7 +226,16 @@ def login(datos: LoginIn, db: Session = Depends(get_db)):
     u = db.query(Usuario).filter_by(email=datos.email.strip().lower()).first()
     if not u or not verify_password(datos.password, u.password_hash):
         raise HTTPException(401, "Correo o clave incorrectos")
-    if not u.activo:
+    # El estado se revela SOLO despues de acertar la clave: quien no la sabe no aprende nada de la cuenta
+    if u.estado == "sin_verificar":
+        # "accion" le dice al frontend que muestre la pantalla para poner el codigo
+        return JSONResponse(status_code=403, content={
+            "detail": "Falta confirmar tu correo. Te enviamos un codigo.", "accion": "verificar", "email": u.email})
+    if u.estado == "en_espera":
+        raise HTTPException(403, "Tu cuenta de profesor esta en lista de espera: un administrador debe aprobarla")
+    if u.estado == "rechazado":
+        raise HTTPException(403, "Un administrador no aprobo tu cuenta de profesor")
+    if u.estado != "activo":
         raise HTTPException(403, "Tu cuenta esta desactivada")
     return {"token": crear_token(u), "usuario": a_json(u)}
 
