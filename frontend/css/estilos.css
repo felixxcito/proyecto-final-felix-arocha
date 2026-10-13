@@ -237,3 +237,15 @@ a.clase-card:hover { border-color: var(--brand-2); transform: translateY(-2px); 
 .asistente .marca { font-size: .75rem; font-weight: 700; text-transform: uppercase; color: var(--ink-3); }
 .asistente:has(input:checked) { background: var(--ok-soft); }
 .asistente:has(input:checked) .marca { color: var(--ok); }
+
+/* ---------- pantalla de acceso (ingresar / registrarse / codigo) */
+.tabs-cuenta { display: flex; gap: .3rem; background: var(--surface-2); padding: 4px; border-radius: 10px; margin-bottom: 1.2rem; }
+.tabs-cuenta button { flex: 1; border: none; background: none; font: inherit; font-weight: 700; color: var(--ink-2); padding: .55em; border-radius: 8px; cursor: pointer; }
+.tabs-cuenta button.activo { background: var(--surface); color: var(--brand); box-shadow: 0 1px 3px rgba(0, 0, 0, .1); }
+.clave-wrap { position: relative; }
+.clave-wrap input { padding-right: 5.2rem; }
+.clave-wrap .ojo { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); border: none; background: none; color: var(--brand-2);
+  font: inherit; font-size: .8rem; font-weight: 700; cursor: pointer; padding: .3em .6em; }
+.check { display: inline-flex; align-items: center; gap: .45rem; font-weight: 600; font-size: .88rem; margin: 0; color: var(--ink-2); cursor: pointer; }
+.check input { width: 17px; height: 17px; accent-color: var(--brand); }
+.aviso-ok { background: var(--ok-soft); color: var(--ok); padding: .6rem .8rem; border-radius: 8px; font-size: .88rem; font-weight: 600; }

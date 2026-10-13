@@ -17,8 +17,9 @@
       <div>
         <h1>Las clases de Lenguajes de Programación, explicadas diapositiva por diapositiva.</h1>
         <ul>
-          <li>La profesora sube su presentación y la IA explica cada diapositiva.</li>
-          <li>Cada estudiante recibe 5 preguntas distintas sobre el tema.</li>
+          <li>El profesor sube su presentación y la IA explica cada diapositiva.</li>
+          <li>Cada estudiante recibe preguntas distintas sobre el tema.</li>
+          <li>Elige a tu profesor, pide inscribirte y estudia con la IA.</li>
           <li>Notificaciones en la web y por correo.</li>
         </ul>
         <p><a href="/como-lo-hicimos.html">Ver cómo construimos este proyecto →</a></p>
@@ -27,45 +28,15 @@
     </section>
 
     <section class="login-form">
-      <form class="card" id="form">
-        <h2>Ingresar</h2>
-        <p class="muted">Usa la cuenta que te dio tu profesora.</p>
-        <div class="field">
-          <label for="email">Correo</label>
-          <input id="email" type="email" autocomplete="username" required>
-        </div>
-        <div class="field">
-          <label for="password">Clave</label>
-          <input id="password" type="password" autocomplete="current-password" required>
-        </div>
-        <p class="error" id="error"></p>
-        <button class="btn primary" style="width:100%;justify-content:center" id="btn">Entrar</button>
-      </form>
+      <div id="panelCuenta"></div>
     </section>
   </div>
 
-  <script src="/js/api.js?v=5"></script>
+  <script src="/js/api.js?v=6"></script>
+  <script src="/js/cuenta.js?v=6"></script>
   <script>
     if (API.token) location.href = '/app.html';
-    document.getElementById('form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const btn = document.getElementById('btn');
-      const error = document.getElementById('error');
-      btn.disabled = true;
-      error.textContent = '';
-      try {
-        const sesion = await API.post('auth/login', {
-          email: document.getElementById('email').value,
-          password: document.getElementById('password').value,
-        });
-        API.guardarSesion(sesion);
-        location.href = '/app.html';
-      } catch (err) {
-        error.textContent = err.message;
-      } finally {
-        btn.disabled = false;
-      }
-    });
+    Cuenta.iniciar();
   </script>
 </body>
 </html>
