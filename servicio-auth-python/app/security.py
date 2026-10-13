@@ -1,6 +1,7 @@
 """Encriptacion de claves (bcrypt) y tokens JWT."""
 import os
 from datetime import datetime, timedelta, timezone
+from urllib.parse import parse_qs, urlparse
 
 import bcrypt
 import jwt
@@ -61,3 +62,12 @@ def profesor_o_interno(
     if x_internal_token and x_internal_token == INTERNAL_TOKEN:
         return {"rol": "interno"}
     return solo_profesor(usuario_actual(authorization))
+
+
+def token_de(authorization: str, uri_original: str) -> str | None:
+    """Saca el token del header Authorization o, si no hay, del ?token= de la URL (el visor de PDF
+    lo manda asi porque pdf.js no puede poner headers)."""
+    if authorization.startswith("Bearer "):
+        return authorization[7:]
+    valores = parse_qs(urlparse(uri_original).query).get("token")
+    return valores[0] if valores else None
