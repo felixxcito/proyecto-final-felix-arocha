@@ -29,13 +29,16 @@ public class MateriaController {
   private final MateriaRepo materias;
   private final SeccionRepo secciones;
   private final ClaseRepo clases;
+  private final SolicitudRepo solicitudes;
   private final Auth auth;
   private final Acceso acceso;
 
-  public MateriaController(MateriaRepo materias, SeccionRepo secciones, ClaseRepo clases, Auth auth, Acceso acceso) {
+  public MateriaController(MateriaRepo materias, SeccionRepo secciones, ClaseRepo clases, SolicitudRepo solicitudes,
+      Auth auth, Acceso acceso) {
     this.materias = materias;
     this.secciones = secciones;
     this.clases = clases;
+    this.solicitudes = solicitudes;
     this.auth = auth;
     this.acceso = acceso;
   }
@@ -144,6 +147,7 @@ public class MateriaController {
     Seccion s = seccion(id);
     Materia m = s.getMateria();
     acceso.exigirDueno(Long.valueOf(u.getSubject()), m);
+    solicitudes.deleteBySeccion_Id(id);   // la FK solicitud.seccion_id exige borrarlas antes
     m.getSecciones().remove(s); // orphanRemoval borra la fila al terminar la transaccion
     secciones.flush();
     acceso.sincronizarMateria(m.getId());
