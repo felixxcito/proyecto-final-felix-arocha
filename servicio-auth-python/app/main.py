@@ -15,7 +15,8 @@ import re
 from typing import Optional
 
 import httpx
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
+import jwt
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -26,9 +27,12 @@ from .security import (
     INTERNAL_TOKEN,
     crear_token,
     hash_password,
+    ALGORITHM,
+    SECRET_KEY,
     profesor_o_interno,
     solo_admin,
     solo_profesor,
+    token_de,
     usuario_actual,
     verify_password,
 )
@@ -163,6 +167,30 @@ def avisar_nuevo_profesor(profesor: dict, admins: list[dict]):
 def health():
     return {"servicio": "auth", "lenguaje": "Python / FastAPI", "orm": "SQLAlchemy",
             "bd": "PostgreSQL", "estado": "ok"}
+
+
+@app.get("/verificar")
+def verificar(authorization: str = Header(default=""), x_original_uri: str = Header(default=""),
+              db: Session = Depends(get_db)):
+    """Lo consulta el gateway (auth_request de Nginx) ANTES de reenviar cada peticion a cualquier servicio.
+
+    Los servicios validan la firma del token por su cuenta, pero eso no sabe si la cuenta sigue activa. Aqui si
+    se mira la base: si el usuario fue desactivado o eliminado, el gateway corta con 401 al instante en los 4
+    servicios, sin esperar a que venza el token.
+      204 -> pasa (o no hay token / token invalido: eso lo decide el servicio de destino)
+      401 -> el token es valido pero la cuenta ya no esta activa
+    """
+    token = token_de(authorization, x_original_uri)
+    if not token:
+        return Response(status_code=204)
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except jwt.PyJWTError:
+        return Response(status_code=204)
+    u = db.get(Usuario, int(payload["sub"]))
+    if not u or u.estado != "activo":
+        return Response(status_code=401)
+    return Response(status_code=204)
 
 
 @app.post("/registro", status_code=201)
