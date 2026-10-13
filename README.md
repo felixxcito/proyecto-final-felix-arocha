@@ -160,7 +160,13 @@ SMTP_FROM=Aula Virtual LPR <sucorreo@gmail.com>
 
 3. `docker compose up -d` (recrea los servicios con la nueva configuración).
 
-Si el correo no se puede enviar, el registro responde con un error claro (no deja una cuenta imposible de verificar).
+**Cómo se comprueba que el correo es real** (en tres pasos):
+
+1. **Dominio:** antes de crear la cuenta, el servicio de auth consulta el DNS (registros MX) y rechaza dominios que no existen o no reciben correo, como `nombre@gmail.con`. Si el DNS no responde, deja pasar el registro.
+2. **Envío:** si el SMTP no puede enviar el mensaje, el registro responde con un error claro y no deja la cuenta creada.
+3. **Código:** que el buzón exista y sea de quien se registra solo lo prueba el código de 6 dígitos (Gmail no permite preguntar si un buzón existe). Sin el código la cuenta no entra.
+
+Si alguien escribe mal su correo (Gmail lo acepta y rebota después), puede volver a registrarse con la misma cédula: el registro sin verificar se descarta y no bloquea la cédula.
 
 ### Seguridad
 
