@@ -92,6 +92,10 @@ class VerificarIn(BaseModel):
     codigo: str = Field(min_length=6, max_length=6)
 
 
+class ReenviarIn(BaseModel):
+    email: str
+
+
 class UsuarioPatch(BaseModel):
     nombre: Optional[str] = None
     password: Optional[str] = Field(default=None, min_length=6)
@@ -205,6 +209,15 @@ def registro_verificar(datos: VerificarIn, tareas: BackgroundTasks, db: Session 
     tareas.add_task(avisar_nuevo_profesor, a_json(u), admins)
     return {"estado": "en_espera",
             "mensaje": "Correo confirmado. Un administrador debe aprobar tu cuenta de profesor; te avisaremos por correo."}
+
+
+@app.post("/registro/reenviar")
+def registro_reenviar(datos: ReenviarIn, db: Session = Depends(get_db)):
+    """Pide otro codigo (con 60 s de espera). Respuesta igual exista o no la cuenta."""
+    u = db.query(Usuario).filter_by(email=datos.email.strip().lower()).first()
+    if u and u.estado == "sin_verificar":
+        codigos.emitir(db, u, "verificar")
+    return {"mensaje": "Si el correo tiene un registro pendiente, te enviamos un codigo nuevo"}
 
 
 @app.post("/login")
