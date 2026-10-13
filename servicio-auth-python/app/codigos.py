@@ -1,5 +1,6 @@
 """Codigos de 6 digitos que se envian por correo (verificar la cuenta, recuperar la clave)."""
 import hashlib
+import hmac
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -65,3 +66,25 @@ def emitir(db: Session, usuario: Usuario, proposito: str) -> None:
     enviar_correo(usuario.email, usuario.nombre, ASUNTOS[proposito],
                   f"Tu codigo es {codigo}. Vence en {EXPIRA_MIN} minutos. "
                   "Si no lo pediste tu, ignora este mensaje.")
+
+
+def validar(db: Session, usuario: Usuario, proposito: str, codigo: str) -> None:
+    """Comprueba el codigo. Si es correcto lo marca como usado; si no, lanza un error HTTP."""
+    ahora = datetime.now(timezone.utc)
+    c = (db.query(Codigo).filter_by(usuario_id=usuario.id, proposito=proposito, usado=False)
+         .order_by(Codigo.id.desc()).first())
+    if not c or c.expira_en < ahora:
+        raise HTTPException(400, "El codigo venció o no existe. Pide uno nuevo.")
+    if c.intentos >= MAX_INTENTOS:
+        raise HTTPException(429, "Demasiados intentos fallidos. Pide un codigo nuevo.")
+
+    # compare_digest compara en tiempo constante: no filtra cuantos caracteres coinciden
+    if not hmac.compare_digest(c.codigo_hash, hash_codigo(codigo.strip())):
+        c.intentos += 1
+        db.commit()
+        quedan = MAX_INTENTOS - c.intentos
+        raise HTTPException(400, f"Codigo incorrecto. Te quedan {quedan} intento(s)." if quedan
+                            else "Codigo incorrecto. Pide un codigo nuevo.")
+
+    c.usado = True
+    db.commit()
