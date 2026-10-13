@@ -12,7 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
  * Materias y secciones — Java + Spring Data JPA (@OneToMany / @ManyToOne / @ElementCollection)
  *
  * Gateway: https://localhost/api/clases/...
- *   GET    /materias                       -> profesora: todas; estudiante: solo donde esta inscrito
+ *   GET    /materias                       -> profesor: las suyas; estudiante: solo donde esta inscrito
  *   POST   /materias                       -> crear materia
  *   PUT    /materias/{id}                  -> editar
  *   DELETE /materias/{id}                  -> eliminar (si no tiene temas)
@@ -49,7 +49,7 @@ public class MateriaController {
   @GetMapping("/materias")
   public List<Map<String, Object>> listar(@RequestHeader(value = "Authorization", required = false) String h) {
     Claims u = auth.usuario(h);
-    boolean profe = auth.esProfesora(u);
+    boolean profe = auth.esProfesor(u);
     Long uid = Long.valueOf(u.getSubject());
     List<Map<String, Object>> resultado = new ArrayList<>();
     for (Materia m : materias.findAllByOrderByNombreAsc()) {
@@ -79,7 +79,7 @@ public class MateriaController {
 
   @PostMapping("/materias")
   public ResponseEntity<Materia> crear(@RequestBody MateriaIn in, @RequestHeader(value = "Authorization", required = false) String h) {
-    auth.profesora(h);
+    auth.profesor(h);
     Materia m = new Materia();
     aplicar(m, in);
     return ResponseEntity.status(201).body(materias.save(m));
@@ -88,7 +88,7 @@ public class MateriaController {
   @PutMapping("/materias/{id}")
   public Materia editar(@PathVariable Long id, @RequestBody MateriaIn in,
       @RequestHeader(value = "Authorization", required = false) String h) {
-    auth.profesora(h);
+    auth.profesor(h);
     Materia m = materia(id);
     aplicar(m, in);
     return materias.save(m);
@@ -96,7 +96,7 @@ public class MateriaController {
 
   @DeleteMapping("/materias/{id}")
   public ResponseEntity<Void> eliminar(@PathVariable Long id, @RequestHeader(value = "Authorization", required = false) String h) {
-    auth.profesora(h);
+    auth.profesor(h);
     if (clases.existsByMateriaId(id))
       throw new ResponseStatusException(HttpStatus.CONFLICT, "La materia tiene temas: muevelos o eliminalos primero");
     materias.delete(materia(id));
@@ -107,7 +107,7 @@ public class MateriaController {
   @PostMapping("/materias/{id}/secciones")
   public ResponseEntity<Seccion> crearSeccion(@PathVariable Long id, @RequestBody SeccionIn in,
       @RequestHeader(value = "Authorization", required = false) String h) {
-    auth.profesora(h);
+    auth.profesor(h);
     Seccion s = new Seccion();
     s.setMateria(materia(id));
     aplicar(s, in);
@@ -117,7 +117,7 @@ public class MateriaController {
   @PutMapping("/secciones/{id}")
   public Seccion editarSeccion(@PathVariable Long id, @RequestBody SeccionIn in,
       @RequestHeader(value = "Authorization", required = false) String h) {
-    auth.profesora(h);
+    auth.profesor(h);
     Seccion s = seccion(id);
     aplicar(s, in);
     return secciones.save(s);
@@ -127,7 +127,7 @@ public class MateriaController {
   @DeleteMapping("/secciones/{id}")
   public ResponseEntity<Void> eliminarSeccion(@PathVariable Long id,
       @RequestHeader(value = "Authorization", required = false) String h) {
-    auth.profesora(h);
+    auth.profesor(h);
     Seccion s = seccion(id);
     Materia m = s.getMateria();
     m.getSecciones().remove(s); // orphanRemoval borra la fila al terminar la transaccion
@@ -140,7 +140,7 @@ public class MateriaController {
   @PutMapping("/secciones/{id}/estudiantes")
   public Seccion inscribir(@PathVariable Long id, @RequestBody EstudiantesIn in,
       @RequestHeader(value = "Authorization", required = false) String h) {
-    auth.profesora(h);
+    auth.profesor(h);
     Seccion s = seccion(id);
     s.setEstudiantes(new HashSet<>(Optional.ofNullable(in.estudiantes()).orElse(List.of())));
     secciones.save(s);

@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Materia que dicta la profesora (ej. Lenguajes de Programacion). Tiene varias secciones. */
+/** Materia que dicta un profesor (ej. Lenguajes de Programacion). Tiene varias secciones. */
 @Entity
 public class Materia {
   @Id

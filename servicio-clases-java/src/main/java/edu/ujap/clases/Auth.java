@@ -31,11 +31,11 @@ public class Auth {
     }
   }
 
-  public boolean esProfesora(Claims c) { return "profesora".equals(c.get("rol", String.class)); }
+  public boolean esProfesor(Claims c) { return "profesor".equals(c.get("rol", String.class)); }
 
-  public Claims profesora(String header) {
+  public Claims profesor(String header) {
     Claims c = usuario(header);
-    if (!esProfesora(c)) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Solo la profesora");
+    if (!esProfesor(c)) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Solo un profesor");
     return c;
   }
 

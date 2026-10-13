@@ -18,11 +18,11 @@ import org.springframework.web.server.ResponseStatusException;
  * Microservicio de CLASES — Java + Spring Boot + Spring Data JPA + PostgreSQL
  *
  * Gateway: https://localhost/api/clases/...
- *   GET    /temas                     -> profesora: todos; estudiante: los de sus secciones
+ *   GET    /temas                     -> profesor: los suyos; estudiante: los de sus secciones
  *   GET    /temas/{id}
- *   POST   /temas                     -> crear tema (profesora)
- *   PUT    /temas/{id}                -> editar tema (profesora)
- *   DELETE /temas/{id}                -> eliminar (profesora)
+ *   POST   /temas                     -> crear tema (profesor)
+ *   PUT    /temas/{id}                -> editar tema (profesor)
+ *   DELETE /temas/{id}                -> eliminar (profesor)
  *   POST   /temas/{id}/presentacion   -> subir PDF/PPTX; se envia a servicio-ia
  *   GET    /temas/{id}/archivo        -> descargar / ver la presentacion
  *   POST   /temas/{id}/publicar       -> publicar a estudiantes (genera preguntas)
@@ -68,7 +68,7 @@ public class ClaseController {
   public List<Clase> listar(@RequestHeader(value = "Authorization", required = false) String h) {
     Claims u = auth.usuario(h);
     List<Clase> todas = repo.findAllByOrderBySemanaAscIdAsc();
-    if (auth.esProfesora(u)) return todas;
+    if (auth.esProfesor(u)) return todas;
     Long uid = Long.valueOf(u.getSubject());
     return todas.stream().filter(c -> acceso.estaInscrito(uid, c)).toList();
   }
@@ -77,7 +77,7 @@ public class ClaseController {
   public Clase obtener(@PathVariable Long id, @RequestHeader(value = "Authorization", required = false) String h) {
     Claims u = auth.usuario(h);
     Clase c = buscar(id);
-    if (!auth.esProfesora(u) && !acceso.estaInscrito(Long.valueOf(u.getSubject()), c))
+    if (!auth.esProfesor(u) && !acceso.estaInscrito(Long.valueOf(u.getSubject()), c))
       throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Esta clase no es de tu seccion");
     return c;
   }
@@ -118,10 +118,10 @@ public class ClaseController {
         .body(new FileSystemResource(ruta));
   }
 
-  // ----------------------------------------------------------------- CRUD profesora
+  // ----------------------------------------------------------------- CRUD profesor
   @PostMapping("/temas")
   public ResponseEntity<Clase> crear(@RequestBody TemaIn in, @RequestHeader(value = "Authorization", required = false) String h) {
-    auth.profesora(h);
+    auth.profesor(h);
     Clase c = new Clase();
     aplicar(c, in);
     return ResponseEntity.status(201).body(repo.save(c));
@@ -130,7 +130,7 @@ public class ClaseController {
   @PutMapping("/temas/{id}")
   public Clase editar(@PathVariable Long id, @RequestBody TemaIn in,
       @RequestHeader(value = "Authorization", required = false) String h) {
-    auth.profesora(h);
+    auth.profesor(h);
     Clase c = buscar(id);
     aplicar(c, in);
     repo.save(c);
@@ -141,7 +141,7 @@ public class ClaseController {
   @DeleteMapping("/temas/{id}")
   public ResponseEntity<Void> eliminar(@PathVariable Long id,
       @RequestHeader(value = "Authorization", required = false) String h) throws IOException {
-    auth.profesora(h);
+    auth.profesor(h);
     Clase c = buscar(id);
     if (c.getArchivoRuta() != null) Files.deleteIfExists(Path.of(c.getArchivoRuta()));
     if (c.getPdfRuta() != null) Files.deleteIfExists(Path.of(c.getPdfRuta()));
@@ -158,7 +158,7 @@ public class ClaseController {
   @PostMapping("/temas/{id}/presentacion")
   public Clase subir(@PathVariable Long id, @RequestParam("archivo") MultipartFile archivo,
       @RequestHeader(value = "Authorization", required = false) String h) throws IOException {
-    auth.profesora(h);
+    auth.profesor(h);
     Clase c = buscar(id);
     String nombre = Optional.ofNullable(archivo.getOriginalFilename()).orElse("presentacion");
     String ext = nombre.contains(".") ? nombre.substring(nombre.lastIndexOf('.') + 1).toLowerCase() : "";
@@ -200,7 +200,7 @@ public class ClaseController {
 
   @PostMapping("/temas/{id}/publicar")
   public Clase publicar(@PathVariable Long id, @RequestHeader(value = "Authorization", required = false) String h) {
-    auth.profesora(h);
+    auth.profesor(h);
     Clase c = buscar(id);
     if (!"BORRADOR".equals(c.getEstado()) && !"PUBLICADA".equals(c.getEstado()))
       throw new ResponseStatusException(HttpStatus.CONFLICT, "Primero sube la presentacion y espera a que la IA termine");
@@ -243,7 +243,7 @@ public class ClaseController {
   @PutMapping("/temas/{id}/configuracion")
   public Clase configurar(@PathVariable Long id, @RequestBody ConfiguracionIn in,
       @RequestHeader(value = "Authorization", required = false) String h) {
-    auth.profesora(h);
+    auth.profesor(h);
     Clase c = buscar(id);
     if (in.privada() != null) c.setPrivada(in.privada());
     if (in.asistentes() != null) c.setAsistentes(new HashSet<>(in.asistentes()));
@@ -264,9 +264,9 @@ public class ClaseController {
   }
 
   private void verificarAcceso(Claims u, Clase c) {
-    if (auth.esProfesora(u)) return;
+    if (auth.esProfesor(u)) return;
     if (!acceso.puedeVer(Long.valueOf(u.getSubject()), c))
-      throw new ResponseStatusException(HttpStatus.FORBIDDEN, c.isPrivada() ? "Clase privada: pidele acceso a tu profesora" : "No tienes acceso a esta clase");
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, c.isPrivada() ? "Clase privada: pidele acceso a tu profesor" : "No tienes acceso a esta clase");
   }
 
   // ----------------------------------------------------------------- utilidades

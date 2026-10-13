@@ -26,7 +26,7 @@ public class Clase {
   @Column(columnDefinition = "TEXT")
   private String descripcion;
 
-  // Presentacion subida por la profesora
+  // Presentacion subida por el profesor
   private String archivoNombre;
   private String archivoRuta;
   private String archivoTipo;
@@ -42,7 +42,7 @@ public class Clase {
   @Column(columnDefinition = "TEXT")
   private String mensajeEstado;
 
-  /** Clase privada: solo los estudiantes que la profesora marco en la lista de asistencia */
+  /** Clase privada: solo los estudiantes que el profesor marco en la lista de asistencia */
   @Column(nullable = false, columnDefinition = "boolean default false")
   private boolean privada = false;
 
