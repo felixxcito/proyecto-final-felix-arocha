@@ -34,7 +34,7 @@ const Cuenta = (() => {
     raiz().querySelectorAll('[data-ir]').forEach((b) => { b.onclick = () => ir(b.dataset.ir); });
   }
 
-  const ir = (vista, datos) => ({ ingresar, codigo, espera }[vista] || ingresar)(datos);
+  const ir = (vista, datos) => ({ ingresar, registro, codigo, espera }[vista] || ingresar)(datos);
 
   // ---------------------------------------------------------------- ingresar
   function ingresar(aviso = '') {
@@ -80,6 +80,57 @@ const Cuenta = (() => {
       }
     };
     document.getElementById('olvide').onclick = (e) => { e.preventDefault(); ir('recuperar'); };
+  }
+
+  // ---------------------------------------------------------------- registro
+  function registro() {
+    pintar(`<form class="card" id="formRegistro">
+      ${pestanas('registro')}
+      <h2>Crea tu cuenta</h2>
+      <div class="field">
+        <label>Soy</label>
+        <div class="roles">
+          <label class="rol-opcion"><input type="radio" name="rol" value="estudiante" checked><span><strong>Estudiante</strong><small>Pido inscribirme a una materia</small></span></label>
+          <label class="rol-opcion"><input type="radio" name="rol" value="profesor"><span><strong>Profesor</strong><small>Un administrador aprueba mi cuenta</small></span></label>
+        </div>
+      </div>
+      <div class="field"><label for="nombre">Nombre completo</label><input id="nombre" required minlength="2" maxlength="120" autocomplete="name"></div>
+      <div class="field"><label for="cedula">Cédula</label><input id="cedula" required placeholder="V-12345678" inputmode="text" autocomplete="off"></div>
+      <div class="field"><label for="correo">Correo</label><input id="correo" type="email" required autocomplete="email"></div>
+      ${campoClave('clave', 'Clave (mínimo 8 caracteres)', 'new-password')}
+      ${campoClave('clave2', 'Repite la clave', 'new-password')}
+      <p class="error" id="error"></p>
+      <button class="btn primary" style="width:100%;justify-content:center" id="btn">Crear cuenta</button>
+      <p class="muted" style="font-size:.8rem;margin:.7rem 0 0">Te enviaremos un código de 6 dígitos para confirmar que el correo es tuyo.</p>
+    </form>`);
+    activarPestanas();
+    activarOjos();
+
+    document.getElementById('formRegistro').onsubmit = async (e) => {
+      e.preventDefault();
+      const error = document.getElementById('error');
+      const clave = document.getElementById('clave').value;
+      if (clave.length < 8) { error.textContent = 'La clave debe tener al menos 8 caracteres'; return; }
+      if (clave !== document.getElementById('clave2').value) { error.textContent = 'Las dos claves no coinciden'; return; }
+      const btn = document.getElementById('btn');
+      btn.disabled = true;
+      error.textContent = '';
+      const email = document.getElementById('correo').value.trim();
+      try {
+        await API.post('auth/registro', {
+          nombre: document.getElementById('nombre').value,
+          cedula: document.getElementById('cedula').value,
+          email,
+          password: clave,
+          rol: raiz().querySelector('input[name=rol]:checked').value,
+        });
+        codigo(email);
+      } catch (err) {
+        // Si ese correo ya empezo un registro, el servidor reenvia el codigo o pide esperar: se va a la pantalla del codigo
+        error.textContent = err.message;
+        btn.disabled = false;
+      }
+    };
   }
 
   // ---------------------------------------------------------------- codigo del correo
