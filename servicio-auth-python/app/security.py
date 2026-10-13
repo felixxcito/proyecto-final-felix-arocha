@@ -41,16 +41,16 @@ def usuario_actual(authorization: str = Header(default="")) -> dict:
         raise HTTPException(401, "Token invalido o vencido")
 
 
-def solo_profesora(user: dict = Depends(usuario_actual)) -> dict:
-    if user["rol"] != "profesora":
-        raise HTTPException(403, "Solo la profesora puede hacer esto")
+def solo_profesor(user: dict = Depends(usuario_actual)) -> dict:
+    if user["rol"] != "profesor":
+        raise HTTPException(403, "Solo un profesor puede hacer esto")
     return user
 
 
-def profesora_o_interno(
+def profesor_o_interno(
     authorization: str = Header(default=""), x_internal_token: str = Header(default="")
 ) -> dict:
-    """Permite el acceso a la profesora o a otro microservicio con INTERNAL_TOKEN."""
+    """Permite el acceso a un profesor o a otro microservicio con INTERNAL_TOKEN."""
     if x_internal_token and x_internal_token == INTERNAL_TOKEN:
         return {"rol": "interno"}
-    return solo_profesora(usuario_actual(authorization))
+    return solo_profesor(usuario_actual(authorization))

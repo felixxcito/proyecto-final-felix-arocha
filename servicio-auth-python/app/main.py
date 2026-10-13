@@ -4,8 +4,8 @@ Microservicio de AUTENTICACION y USUARIOS — Python + FastAPI + SQLAlchemy + Po
 Gateway: https://localhost/api/auth/...
   POST   /login               -> token JWT
   GET    /me                  -> datos del usuario del token
-  GET    /usuarios            -> lista (profesora o servicio interno), filtro ?rol=
-  POST   /usuarios            -> crear usuario (solo profesora), opcionalmente inscrito en secciones
+  GET    /usuarios            -> lista (profesor o servicio interno), filtro ?rol=
+  POST   /usuarios            -> crear usuario (solo profesor), opcionalmente inscrito en secciones
   PATCH  /usuarios/{id}       -> editar / activar / cambiar clave
   DELETE /usuarios/{id}       -> eliminar
 """
@@ -23,8 +23,8 @@ from .security import (
     INTERNAL_TOKEN,
     crear_token,
     hash_password,
-    profesora_o_interno,
-    solo_profesora,
+    profesor_o_interno,
+    solo_profesor,
     usuario_actual,
     verify_password,
 )
@@ -45,13 +45,13 @@ def iniciar():
         email = os.getenv("ADMIN_EMAIL", "").strip().lower()
         if email and not db.query(Usuario).filter_by(email=email).first():
             db.add(Usuario(
-                nombre=os.getenv("ADMIN_NOMBRE", "Profesora"),
+                nombre=os.getenv("ADMIN_NOMBRE", "Profesor"),
                 email=email,
                 password_hash=hash_password(os.getenv("ADMIN_PASSWORD", "cambiame")),
-                rol="profesora", email_verificado=True, estado="activo",
+                rol="profesor", email_verificado=True, estado="activo",
             ))
             db.commit()
-            log.info("Usuario profesora creado: %s", email)
+            log.info("Usuario inicial creado: %s", email)
 
 
 # ----------------------------------------------------------------- esquemas
@@ -64,7 +64,7 @@ class UsuarioIn(BaseModel):
     nombre: str = Field(min_length=2)
     email: str = Field(pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
     password: str = Field(min_length=6)
-    rol: str = Field(default="estudiante", pattern="^(estudiante|profesora)$")
+    rol: str = Field(default="estudiante", pattern="^(estudiante|profesor)$")
     secciones: list[int] = []  # secciones (servicio de clases) donde se inscribe al estudiante
 
 
@@ -94,7 +94,7 @@ def avisar_estudiante_nuevo(u: dict, secciones: list[int]):
         httpx.post(f"{NOTIF_URL}/interno/notificar", headers=headers, timeout=10, json={
             "usuarioId": u["id"], "email": u["email"], "nombre": u["nombre"],
             "titulo": "Bienvenido al Aula Virtual LPR",
-            "mensaje": f"Tu profesora creo tu cuenta con el correo {u['email']}. "
+            "mensaje": f"Tu profesor creo tu cuenta con el correo {u['email']}. "
                        "Entra con la clave que ella te entrego.",
             "enlace": PUBLIC_URL, "enviarCorreo": True,
         })
@@ -128,7 +128,7 @@ def me(user: dict = Depends(usuario_actual), db: Session = Depends(get_db)):
 
 
 @app.get("/usuarios")
-def listar(rol: Optional[str] = None, _=Depends(profesora_o_interno), db: Session = Depends(get_db)):
+def listar(rol: Optional[str] = None, _=Depends(profesor_o_interno), db: Session = Depends(get_db)):
     q = db.query(Usuario)
     if rol:
         q = q.filter_by(rol=rol)
@@ -136,7 +136,7 @@ def listar(rol: Optional[str] = None, _=Depends(profesora_o_interno), db: Sessio
 
 
 @app.post("/usuarios", status_code=201)
-def crear(datos: UsuarioIn, tareas: BackgroundTasks, _=Depends(solo_profesora),
+def crear(datos: UsuarioIn, tareas: BackgroundTasks, _=Depends(solo_profesor),
           db: Session = Depends(get_db)):
     email = datos.email.strip().lower()
     if db.query(Usuario).filter_by(email=email).first():
@@ -152,7 +152,7 @@ def crear(datos: UsuarioIn, tareas: BackgroundTasks, _=Depends(solo_profesora),
 
 
 @app.patch("/usuarios/{uid}")
-def editar(uid: int, datos: UsuarioPatch, user=Depends(solo_profesora), db: Session = Depends(get_db)):
+def editar(uid: int, datos: UsuarioPatch, user=Depends(solo_profesor), db: Session = Depends(get_db)):
     u = db.get(Usuario, uid)
     if not u:
         raise HTTPException(404, "Usuario no existe")
@@ -169,7 +169,7 @@ def editar(uid: int, datos: UsuarioPatch, user=Depends(solo_profesora), db: Sess
 
 
 @app.delete("/usuarios/{uid}", status_code=204)
-def eliminar(uid: int, user=Depends(solo_profesora), db: Session = Depends(get_db)):
+def eliminar(uid: int, user=Depends(solo_profesor), db: Session = Depends(get_db)):
     u = db.get(Usuario, uid)
     if not u:
         raise HTTPException(404, "Usuario no existe")

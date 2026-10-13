@@ -22,7 +22,7 @@ class Usuario(Base):
     email = Column(String(160), unique=True, nullable=False, index=True)
     # Nunca guardamos la clave: solo su hash bcrypt (incluye sal aleatoria)
     password_hash = Column(String(100), nullable=False)
-    rol = Column(String(20), nullable=False, default="estudiante")  # admin | profesora | estudiante
+    rol = Column(String(20), nullable=False, default="estudiante")  # admin | profesor | estudiante
     # Cedula de identidad (V-12345678). Unica; el admin no tiene, por eso admite NULL.
     cedula = Column(String(20), unique=True, nullable=True)
     email_verificado = Column(Boolean, nullable=False, default=False)
