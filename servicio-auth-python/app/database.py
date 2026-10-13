@@ -22,9 +22,18 @@ class Usuario(Base):
     email = Column(String(160), unique=True, nullable=False, index=True)
     # Nunca guardamos la clave: solo su hash bcrypt (incluye sal aleatoria)
     password_hash = Column(String(100), nullable=False)
-    rol = Column(String(20), nullable=False, default="estudiante")  # profesora | estudiante
-    activo = Column(Boolean, nullable=False, default=True)
+    rol = Column(String(20), nullable=False, default="estudiante")  # admin | profesora | estudiante
+    # Cedula de identidad (V-12345678). Unica; el admin no tiene, por eso admite NULL.
+    cedula = Column(String(20), unique=True, nullable=True)
+    email_verificado = Column(Boolean, nullable=False, default=False)
+    # sin_verificar -> (en_espera, solo profesores) -> activo | rechazado | desactivado
+    estado = Column(String(20), nullable=False, default="sin_verificar")
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+    @property
+    def activo(self) -> bool:
+        """Solo una cuenta en estado 'activo' puede entrar al sistema."""
+        return self.estado == "activo"
 
 
 def get_db():

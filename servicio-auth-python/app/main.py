@@ -48,7 +48,7 @@ def iniciar():
                 nombre=os.getenv("ADMIN_NOMBRE", "Profesora"),
                 email=email,
                 password_hash=hash_password(os.getenv("ADMIN_PASSWORD", "cambiame")),
-                rol="profesora",
+                rol="profesora", email_verificado=True, estado="activo",
             ))
             db.commit()
             log.info("Usuario profesora creado: %s", email)
@@ -141,8 +141,8 @@ def crear(datos: UsuarioIn, tareas: BackgroundTasks, _=Depends(solo_profesora),
     email = datos.email.strip().lower()
     if db.query(Usuario).filter_by(email=email).first():
         raise HTTPException(409, "Ya existe un usuario con ese correo")
-    u = Usuario(nombre=datos.nombre.strip(), email=email,
-                password_hash=hash_password(datos.password), rol=datos.rol)
+    u = Usuario(nombre=datos.nombre.strip(), email=email, password_hash=hash_password(datos.password),
+                rol=datos.rol, email_verificado=True, estado="activo")
     db.add(u)
     db.commit()
     db.refresh(u)
@@ -163,7 +163,7 @@ def editar(uid: int, datos: UsuarioPatch, user=Depends(solo_profesora), db: Sess
     if datos.activo is not None:
         if u.id == int(user["sub"]) and not datos.activo:
             raise HTTPException(400, "No puedes desactivar tu propia cuenta")
-        u.activo = datos.activo
+        u.estado = "activo" if datos.activo else "desactivado"
     db.commit()
     return a_json(u)
 
