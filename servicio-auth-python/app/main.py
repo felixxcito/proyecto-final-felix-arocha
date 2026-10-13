@@ -19,6 +19,7 @@ from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from . import codigos
 from .database import Base, SessionLocal, Usuario, engine, get_db
 from .security import (
     INTERNAL_TOKEN,
@@ -130,6 +131,40 @@ def avisar_estudiante_nuevo(u: dict, secciones: list[int]):
 def health():
     return {"servicio": "auth", "lenguaje": "Python / FastAPI", "orm": "SQLAlchemy",
             "bd": "PostgreSQL", "estado": "ok"}
+
+
+@app.post("/registro", status_code=201)
+def registro(datos: RegistroIn, db: Session = Depends(get_db)):
+    """Crea la cuenta SIN verificar y envia un codigo al correo. Sin el codigo no se puede entrar."""
+    email = datos.email.strip().lower()
+    cedula = normalizar_cedula(datos.cedula)
+
+    existente = db.query(Usuario).filter_by(email=email).first()
+    if existente and existente.estado != "sin_verificar":
+        raise HTTPException(409, "Ya existe una cuenta con ese correo")
+    if existente:
+        # Registro a medias (nunca confirmo el codigo): solo se reenvia el codigo. NO se pisan sus datos:
+        # si no, alguien podria registrar el correo de otra persona con una clave suya y, cuando la
+        # victima pusiera el codigo que le llego, la cuenta quedaria verificada con la clave del atacante.
+        codigos.emitir(db, existente, "verificar")
+        return {"mensaje": "Te reenviamos el codigo a tu correo", "email": email}
+
+    if db.query(Usuario).filter_by(cedula=cedula).first():
+        raise HTTPException(409, "Ya existe una cuenta con esa cedula")
+    u = Usuario(nombre=datos.nombre.strip(), email=email, cedula=cedula, rol=datos.rol,
+                password_hash=hash_password(datos.password), email_verificado=False, estado="sin_verificar")
+    db.add(u)
+    db.commit()
+    db.refresh(u)
+    try:
+        codigos.emitir(db, u, "verificar")
+    except HTTPException:
+        # Si el correo no salio (direccion inexistente, SMTP caido) no dejamos una cuenta que nadie
+        # podria verificar ocupando el correo y la cedula.
+        db.delete(u)
+        db.commit()
+        raise
+    return {"mensaje": "Te enviamos un codigo de 6 digitos a tu correo", "email": email}
 
 
 @app.post("/login")
