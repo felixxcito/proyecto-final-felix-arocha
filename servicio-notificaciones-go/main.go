@@ -5,6 +5,7 @@
 //   PATCH /:id/leida           -> marcar una como leida
 //   POST  /leer-todas          -> marcar todas como leidas
 //   POST  /interno/notificar   -> (solo otros microservicios) crea notificacion y envia correo
+//   POST  /interno/correo      -> (solo otros microservicios) envia SOLO un correo, sin campanita
 package main
 
 import (
@@ -42,6 +43,14 @@ type peticionNotificar struct {
 	EnviarCorreo bool   `json:"enviarCorreo"`
 }
 
+// peticionCorreo: un correo suelto (por ejemplo el codigo de verificacion), sin notificacion.
+type peticionCorreo struct {
+	Email   string `json:"email" binding:"required"`
+	Nombre  string `json:"nombre"`
+	Asunto  string `json:"asunto" binding:"required"`
+	Mensaje string `json:"mensaje" binding:"required"`
+}
+
 var db *gorm.DB
 
 func main() {
@@ -68,6 +77,7 @@ func main() {
 	})
 
 	r.POST("/interno/notificar", soloInterno, notificar)
+	r.POST("/interno/correo", soloInterno, correoSuelto)
 
 	u := r.Group("/", conToken)
 	u.GET("/", listar)
@@ -153,4 +163,20 @@ func notificar(c *gin.Context) {
 		}(n.ID)
 	}
 	c.JSON(201, n)
+}
+
+// correoSuelto envia un correo y espera el resultado: quien llama (Python, con los codigos de
+// verificacion) necesita saber si el correo salio para avisarle al usuario si no pudo enviarse.
+func correoSuelto(c *gin.Context) {
+	var p peticionCorreo
+	if err := c.ShouldBindJSON(&p); err != nil {
+		c.JSON(400, gin.H{"detail": err.Error()})
+		return
+	}
+	if err := enviarCorreo(p.Email, p.Nombre, p.Asunto, p.Mensaje, ""); err != nil {
+		log.Println("error enviando correo a", p.Email, ":", err)
+		c.JSON(502, gin.H{"detail": "No se pudo enviar el correo: " + err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{"ok": true})
 }
