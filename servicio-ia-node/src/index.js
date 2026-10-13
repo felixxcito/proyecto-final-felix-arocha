@@ -255,8 +255,9 @@ app.put('/clases/:id/contenido', conToken, soloProfesor, h(async (req, res) => {
 }));
 
 app.post('/clases/:id/regenerar', conToken, soloProfesor, h(async (req, res) => {
-  const c = await Contenido.findOne({ claseId: Number(req.params.id) });
-  if (!c?.diapositivas?.length) return res.status(404).json({ detail: 'No hay diapositivas para regenerar' });
+  const c = await claseDelProfesor(req, res);
+  if (!c) return;
+  if (!c.diapositivas?.length) return res.status(404).json({ detail: 'No hay diapositivas para regenerar' });
   const resultado = ia.activo()
     ? await ia.explicarPresentacion({ titulo: c.titulo, descripcion: c.descripcion, diapositivas: c.diapositivas })
     : explicarDemo(c.diapositivas, c.titulo);
