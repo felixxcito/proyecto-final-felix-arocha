@@ -303,6 +303,7 @@ app.put('/clases/:id/mis-preguntas', conToken, soloEstudiante, h(async (req, res
 }));
 
 app.get('/clases/:id/respuestas', conToken, soloProfesor, h(async (req, res) => {
+  if (!await claseDelProfesor(req, res, 'profesorId')) return;
   res.json(await Asignacion.find({ claseId: Number(req.params.id) }).sort('estudianteNombre'));
 }));
 
@@ -310,6 +311,7 @@ app.get('/clases/:id/respuestas', conToken, soloProfesor, h(async (req, res) => 
 app.put('/clases/:id/asignaciones/:aid/preguntas/:pid', conToken, soloProfesor, h(async (req, res) => {
   const texto = String(req.body.texto || '').trim();
   if (texto.length < 5) return res.status(400).json({ detail: 'La pregunta es muy corta' });
+  if (!await claseDelProfesor(req, res, 'profesorId')) return;
   const a = await Asignacion.findOne({ _id: req.params.aid, claseId: Number(req.params.id) });
   const p = a?.preguntas.id(req.params.pid);
   if (!p) return res.status(404).json({ detail: 'Pregunta no encontrada' });
