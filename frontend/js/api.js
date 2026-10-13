@@ -30,7 +30,11 @@ const API = {
       // FastAPI usa "detail", Spring usa "message"
       let msg = data?.detail || data?.message || data?.error || `Error ${res.status}`;
       if (Array.isArray(msg)) msg = msg.map((e) => e.msg).join(', ');
-      throw new Error(msg);
+      const error = new Error(msg);
+      // El login necesita saber el estado y la "accion" que manda el servidor (ej. {accion:"verificar"})
+      error.status = res.status;
+      error.datos = data;
+      throw error;
     }
     return data;
   },
