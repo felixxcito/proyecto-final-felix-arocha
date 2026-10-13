@@ -176,7 +176,13 @@ def registro(datos: RegistroIn, db: Session = Depends(get_db)):
         codigos.emitir(db, existente, "verificar")
         return {"mensaje": "Te reenviamos el codigo a tu correo", "email": email}
 
-    if db.query(Usuario).filter_by(cedula=cedula).first():
+    con_cedula = db.query(Usuario).filter_by(cedula=cedula).first()
+    if con_cedula and con_cedula.estado == "sin_verificar":
+        # Registro abandonado: nunca confirmo su correo (por ejemplo lo escribio mal y el codigo no llego).
+        # Se borra para no dejar la cedula bloqueada; una cuenta sin verificar no da acceso a nada.
+        db.delete(con_cedula)
+        db.commit()
+    elif con_cedula:
         raise HTTPException(409, "Ya existe una cuenta con esa cedula")
     u = Usuario(nombre=datos.nombre.strip(), email=email, cedula=cedula, rol=datos.rol,
                 password_hash=hash_password(datos.password), email_verificado=False, estado="sin_verificar")
