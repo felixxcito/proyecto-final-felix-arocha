@@ -145,6 +145,8 @@ Después de cambiar el `.env`: `docker compose up -d` (recrea los servicios con 
 
 El sistema **envía correos de verdad** (códigos de verificación, recuperación de clave, solicitudes y avisos). Por defecto los manda a **Mailpit** (http://localhost:8025), una bandeja de prueba: así se puede evaluar todo sin configurar nada, leyendo el código ahí.
 
+**¿Por qué Mailpit por defecto y no una cuenta de Gmail ya configurada?** Porque este repositorio es público y una contraseña SMTP publicada permite a cualquiera enviar correos como esa cuenta (y Google la bloquearía). Además, así el sistema se evalúa sin configurar nada: el código de verificación se lee en http://localhost:8025. El servicio de notificaciones usa SMTP estándar, así que pasar a Gmail, Outlook u otro proveedor es cambiar cinco variables del `.env`, sin tocar el código.
+
 Para que lleguen a bandejas reales (por ejemplo Gmail):
 
 1. En tu cuenta de Google activa la **verificación en 2 pasos** y crea una **contraseña de aplicación** (Cuenta de Google → Seguridad → Contraseñas de aplicaciones).
