@@ -61,6 +61,7 @@ def iniciar():
 class LoginIn(BaseModel):
     email: str
     password: str
+    recordarme: bool = False  # sesion de 30 dias en vez de 12 horas
 
 
 class UsuarioIn(BaseModel):
@@ -237,7 +238,7 @@ def login(datos: LoginIn, db: Session = Depends(get_db)):
         raise HTTPException(403, "Un administrador no aprobo tu cuenta de profesor")
     if u.estado != "activo":
         raise HTTPException(403, "Tu cuenta esta desactivada")
-    return {"token": crear_token(u), "usuario": a_json(u)}
+    return {"token": crear_token(u, datos.recordarme), "usuario": a_json(u)}
 
 
 @app.get("/me")
