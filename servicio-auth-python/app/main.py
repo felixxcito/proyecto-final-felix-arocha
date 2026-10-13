@@ -126,6 +126,21 @@ def avisar_estudiante_nuevo(u: dict, secciones: list[int]):
         log.warning("No se pudo avisar a servicio-notificaciones: %s", e)
 
 
+def avisar_nuevo_profesor(profesor: dict, admins: list[dict]):
+    """Python -> Go: avisa a los admins (campanita + correo) que un profesor espera su aprobacion."""
+    for a in admins:
+        try:
+            httpx.post(f"{NOTIF_URL}/interno/notificar", headers={"X-Internal-Token": INTERNAL_TOKEN}, timeout=10, json={
+                "usuarioId": a["id"], "email": a["email"], "nombre": a["nombre"],
+                "titulo": "Un profesor espera tu aprobacion",
+                "mensaje": f"{profesor['nombre']} ({profesor['email']}, cedula {profesor['cedula']}) confirmo su correo "
+                           "y espera que apruebes su cuenta de profesor.",
+                "enlace": f"{PUBLIC_URL}/app.html#/admin", "enviarCorreo": True,
+            })
+        except httpx.HTTPError as e:
+            log.warning("No se pudo avisar al admin %s: %s", a["email"], e)
+
+
 # ----------------------------------------------------------------- endpoints
 @app.get("/health")
 def health():
