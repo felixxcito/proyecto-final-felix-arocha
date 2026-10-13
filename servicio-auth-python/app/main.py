@@ -408,3 +408,19 @@ def admin_cambiar_estado(uid: int, datos: EstadoIn, user=Depends(solo_admin), db
     u.estado = datos.estado
     db.commit()
     return a_json(u)
+
+
+@app.delete("/admin/usuarios/{uid}", status_code=204)
+def admin_eliminar(uid: int, user=Depends(solo_admin), db: Session = Depends(get_db)):
+    u = db.get(Usuario, uid)
+    if not u:
+        raise HTTPException(404, "Usuario no existe")
+    if u.id == int(user["sub"]):
+        raise HTTPException(400, "No puedes eliminar tu propia cuenta")
+    db.delete(u)
+    db.commit()
+    # Python -> Java: sacarlo de las secciones donde estaba inscrito
+    try:
+        httpx.delete(f"{CLASES_URL}/interno/estudiantes/{uid}", headers={"X-Internal-Token": INTERNAL_TOKEN}, timeout=10)
+    except httpx.HTTPError as e:
+        log.warning("No se pudo actualizar servicio-clases: %s", e)
