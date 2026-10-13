@@ -3,16 +3,16 @@
  *
  * Gateway: https://localhost/api/ia/...
  *   GET  /clases/:id/contenido        -> explicacion de cada diapositiva
- *   PUT  /clases/:id/contenido        -> la profesora corrige lo que genero la IA
+ *   PUT  /clases/:id/contenido        -> el profesor corrige lo que genero la IA
  *   POST /clases/:id/regenerar        -> volver a pedir las explicaciones a la IA
  *   GET  /clases/:id/mis-preguntas    -> las preguntas del estudiante
  *   PUT  /clases/:id/mis-preguntas    -> guardar / entregar respuestas
- *   GET  /clases/:id/respuestas       -> (profesora) respuestas de todos
- *   PUT  /clases/:id/asignaciones/:aid/preguntas/:pid -> (profesora) corregir una pregunta
+ *   GET  /clases/:id/respuestas       -> (profesor) respuestas de todos
+ *   PUT  /clases/:id/asignaciones/:aid/preguntas/:pid -> (profesor) corregir una pregunta
  *   POST /clases/:id/consultas        -> preguntarle a la IA sobre una diapositiva
- *   GET  /clases/:id/consultas        -> estudiante: sus dudas / profesora: las de todos
+ *   GET  /clases/:id/consultas        -> estudiante: sus dudas / profesor: las de todos
  *   GET  /mis-asignaciones            -> (estudiante) estado de sus preguntas
- *   GET  /estadisticas                -> (profesora) entregas por clase
+ *   GET  /estadisticas                -> (profesor) entregas por clase
  * Internos (solo otros microservicios, header X-Internal-Token):
  *   POST /interno/procesar            <- Java manda la presentacion
  *   POST /interno/asignar             <- Java publica la clase
@@ -32,10 +32,10 @@ const { usuariosPorRol, actualizarEstadoClase, notificar } = require('./servicio
 const app = express();
 app.use(express.json({ limit: '80mb' }));  // la presentacion llega en base64
 
-/** La profesora y los estudiantes permitidos (seccion + lista de asistencia, segun Java) pueden ver la clase. */
-const tieneAcceso = (c, usuario) => usuario.rol === 'profesora'
+/** El profesor y los estudiantes permitidos (seccion + lista de asistencia, segun Java) pueden ver la clase. */
+const tieneAcceso = (c, usuario) => usuario.rol === 'profesor'
   || (c.publicado && (c.permitidos || []).includes(usuario.id));
-const sinAcceso = (c) => (c.privada ? 'Clase privada: pidele acceso a tu profesora' : 'No tienes acceso a esta clase');
+const sinAcceso = (c) => (c.privada ? 'Clase privada: pidele acceso a tu profesor' : 'No tienes acceso a esta clase');
 
 // ------------------------------------------------------------------ middlewares
 function conToken(req, res, next) {
@@ -48,8 +48,8 @@ function conToken(req, res, next) {
     res.status(401).json({ detail: 'Token invalido o ausente' });
   }
 }
-const soloProfesora = (req, res, next) => (req.usuario.rol === 'profesora'
-  ? next() : res.status(403).json({ detail: 'Solo la profesora' }));
+const soloProfesor = (req, res, next) => (req.usuario.rol === 'profesor'
+  ? next() : res.status(403).json({ detail: 'Solo un profesor' }));
 const soloEstudiante = (req, res, next) => (req.usuario.rol === 'estudiante'
   ? next() : res.status(403).json({ detail: 'Solo estudiantes' }));
 const soloInterno = (req, res, next) => (req.headers['x-internal-token'] === process.env.INTERNAL_TOKEN
@@ -231,7 +231,7 @@ app.get('/clases/:id/contenido', conToken, h(async (req, res) => {
   res.json(c);
 }));
 
-app.put('/clases/:id/contenido', conToken, soloProfesora, h(async (req, res) => {
+app.put('/clases/:id/contenido', conToken, soloProfesor, h(async (req, res) => {
   const c = await Contenido.findOne({ claseId: Number(req.params.id) });
   if (!c) return res.status(404).json({ detail: 'No existe' });
   if (typeof req.body.resumen === 'string') c.resumen = req.body.resumen;
@@ -244,7 +244,7 @@ app.put('/clases/:id/contenido', conToken, soloProfesora, h(async (req, res) => 
   res.json(c);
 }));
 
-app.post('/clases/:id/regenerar', conToken, soloProfesora, h(async (req, res) => {
+app.post('/clases/:id/regenerar', conToken, soloProfesor, h(async (req, res) => {
   const c = await Contenido.findOne({ claseId: Number(req.params.id) });
   if (!c?.diapositivas?.length) return res.status(404).json({ detail: 'No hay diapositivas para regenerar' });
   const resultado = ia.activo()
@@ -283,7 +283,7 @@ app.put('/clases/:id/mis-preguntas', conToken, soloEstudiante, h(async (req, res
   await a.save();
   if (a.entregada) {
     const c = await Contenido.findOne({ claseId }, 'titulo');
-    usuariosPorRol('profesora').then((profes) => profes.forEach((p) => notificar(p,
+    usuariosPorRol('profesor').then((profes) => profes.forEach((p) => notificar(p,
       `${req.usuario.nombre} entrego sus respuestas`,
       `${req.usuario.nombre} respondio sus ${a.preguntas.length} preguntas de la clase "${c?.titulo}".`, `#/clase/${claseId}/respuestas`)))
       .catch((e) => console.error(e.message));
@@ -291,12 +291,12 @@ app.put('/clases/:id/mis-preguntas', conToken, soloEstudiante, h(async (req, res
   res.json(a);
 }));
 
-app.get('/clases/:id/respuestas', conToken, soloProfesora, h(async (req, res) => {
+app.get('/clases/:id/respuestas', conToken, soloProfesor, h(async (req, res) => {
   res.json(await Asignacion.find({ claseId: Number(req.params.id) }).sort('estudianteNombre'));
 }));
 
-/** La profesora corrige una pregunta generada por la IA (solo si el estudiante aun no entrega). */
-app.put('/clases/:id/asignaciones/:aid/preguntas/:pid', conToken, soloProfesora, h(async (req, res) => {
+/** El profesor corrige una pregunta generada por la IA (solo si el estudiante aun no entrega). */
+app.put('/clases/:id/asignaciones/:aid/preguntas/:pid', conToken, soloProfesor, h(async (req, res) => {
   const texto = String(req.body.texto || '').trim();
   if (texto.length < 5) return res.status(400).json({ detail: 'La pregunta es muy corta' });
   const a = await Asignacion.findOne({ _id: req.params.aid, claseId: Number(req.params.id) });
@@ -340,8 +340,8 @@ app.post('/clases/:id/consultas', conToken, h(async (req, res) => {
 
 app.get('/clases/:id/consultas', conToken, h(async (req, res) => {
   const filtro = { claseId: Number(req.params.id) };
-  // La profesora ve las dudas de todos los estudiantes; cada estudiante solo las suyas
-  if (req.usuario.rol === 'profesora') filtro.rol = 'estudiante';
+  // El profesor ve las dudas de todos los estudiantes; cada estudiante solo las suyas
+  if (req.usuario.rol === 'profesor') filtro.rol = 'estudiante';
   else filtro.usuarioId = req.usuario.id;
   res.json(await Consulta.find(filtro).sort('createdAt'));
 }));
@@ -350,7 +350,7 @@ app.get('/mis-asignaciones', conToken, soloEstudiante, h(async (req, res) => {
   res.json(await Asignacion.find({ estudianteId: req.usuario.id }, 'claseId entregada entregadaEn'));
 }));
 
-app.get('/estadisticas', conToken, soloProfesora, h(async (req, res) => {
+app.get('/estadisticas', conToken, soloProfesor, h(async (req, res) => {
   res.json(await Asignacion.aggregate([
     { $group: { _id: '$claseId', total: { $sum: 1 }, entregadas: { $sum: { $cond: ['$entregada', 1, 0] } } } },
     { $project: { _id: 0, claseId: '$_id', total: 1, entregadas: 1 } },

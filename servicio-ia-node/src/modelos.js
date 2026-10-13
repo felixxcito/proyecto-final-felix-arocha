@@ -7,7 +7,7 @@ const diapositivaSchema = new mongoose.Schema({
   n: { type: Number, required: true },
   titulo: String,
   texto: String,        // texto extraido del PDF/PPTX
-  explicacion: String,  // redactada por la IA (editable por la profesora)
+  explicacion: String,  // redactada por la IA (editable por el profesor)
 }, { _id: false });
 
 const contenidoSchema = new mongoose.Schema({

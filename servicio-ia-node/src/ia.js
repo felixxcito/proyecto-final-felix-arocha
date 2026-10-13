@@ -138,7 +138,7 @@ async function explicarPresentacion({ titulo, descripcion, diapositivas }) {
 
   const explicarGrupo = async (grupo) => {
     const texto = grupo.map((d) => `--- Diapositiva ${d.n} ---\n${d.texto || '(sin texto, diapositiva visual)'}`).join('\n\n');
-    const r = await pedirJSON(`La profesora subio la presentacion de la clase "${titulo}". ${descripcion ? `Descripcion: ${descripcion}` : ''}
+    const r = await pedirJSON(`El profesor subio la presentacion de la clase "${titulo}". ${descripcion ? `Descripcion: ${descripcion}` : ''}
 Para CADA una de estas ${grupo.length} diapositivas escribe una explicacion de 60 a 140 palabras que desarrolle lo
 que muestra, explique el porque de cada concepto y, si hay codigo, que hace ese codigo. No inventes contenido ajeno al tema.
 Usa exactamente los mismos numeros de diapositiva.
