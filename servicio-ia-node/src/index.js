@@ -238,7 +238,10 @@ app.get('/clases/:id/contenido', conToken, h(async (req, res) => {
   const c = await Contenido.findOne({ claseId: Number(req.params.id) }, '-preguntasUsadas');
   if (!c) return res.status(404).json({ detail: 'Esta clase aun no tiene presentacion' });
   if (!tieneAcceso(c, req.usuario)) return res.status(403).json({ detail: sinAcceso(c) });
-  res.json(c);
+  // La lista de ids de companeros con acceso es de uso interno: el estudiante no la necesita
+  const salida = c.toObject();
+  if (req.usuario.rol !== 'profesor') { delete salida.permitidos; delete salida.profesorId; }
+  res.json(salida);
 }));
 
 app.put('/clases/:id/contenido', conToken, soloProfesor, h(async (req, res) => {
