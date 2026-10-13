@@ -205,8 +205,9 @@ public class ClaseController {
 
   @PostMapping("/temas/{id}/publicar")
   public Clase publicar(@PathVariable Long id, @RequestHeader(value = "Authorization", required = false) String h) {
-    auth.profesor(h);
+    Claims u = auth.profesor(h);
     Clase c = buscar(id);
+    exigirDueno(u, c);
     if (!"BORRADOR".equals(c.getEstado()) && !"PUBLICADA".equals(c.getEstado()))
       throw new ResponseStatusException(HttpStatus.CONFLICT, "Primero sube la presentacion y espera a que la IA termine");
     if (c.getMateriaId() == null)
@@ -248,8 +249,9 @@ public class ClaseController {
   @PutMapping("/temas/{id}/configuracion")
   public Clase configurar(@PathVariable Long id, @RequestBody ConfiguracionIn in,
       @RequestHeader(value = "Authorization", required = false) String h) {
-    auth.profesor(h);
+    Claims u = auth.profesor(h);
     Clase c = buscar(id);
+    exigirDueno(u, c);
     if (in.privada() != null) c.setPrivada(in.privada());
     if (in.asistentes() != null) c.setAsistentes(new HashSet<>(in.asistentes()));
     if (in.preguntasPorEstudiante() != null) {
@@ -269,7 +271,10 @@ public class ClaseController {
   }
 
   private void verificarAcceso(Claims u, Clase c) {
-    if (auth.esProfesor(u)) return;
+    if (auth.esProfesor(u)) {
+      exigirDueno(u, c);
+      return;
+    }
     if (!acceso.puedeVer(Long.valueOf(u.getSubject()), c))
       throw new ResponseStatusException(HttpStatus.FORBIDDEN, c.isPrivada() ? "Clase privada: pidele acceso a tu profesor" : "No tienes acceso a esta clase");
   }
