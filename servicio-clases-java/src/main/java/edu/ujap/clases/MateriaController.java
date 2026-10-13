@@ -79,9 +79,13 @@ public class MateriaController {
 
   @PostMapping("/materias")
   public ResponseEntity<Materia> crear(@RequestBody MateriaIn in, @RequestHeader(value = "Authorization", required = false) String h) {
-    auth.profesor(h);
+    Claims u = auth.profesor(h);
     Materia m = new Materia();
     aplicar(m, in);
+    // El dueno es quien crea la materia: sale del token firmado, nunca de lo que mande el cliente
+    m.setProfesorId(Long.valueOf(u.getSubject()));
+    m.setProfesorNombre(u.get("nombre", String.class));
+    m.setProfesorEmail(u.get("email", String.class));
     return ResponseEntity.status(201).body(materias.save(m));
   }
 
