@@ -83,9 +83,9 @@
                 <tr><td>BD SQL en mín. 2 servicios</td><td>3</td><td>PostgreSQL en <strong>3</strong> servicios: SQLAlchemy, Spring Data JPA y GORM (una BD por servicio)</td></tr>
                 <tr><td>BD NoSQL en mín. 1 servicio</td><td>2</td><td>MongoDB con Mongoose en el servicio de IA</td></tr>
                 <tr><td>Frontend consumiendo APIs</td><td>2</td><td>HTML/CSS/JS servido por Nginx; consume los 4 servicios vía <code>/api/*</code></td></tr>
-                <tr><td>Comunicación entre microservicios</td><td>2</td><td>Java→Node, Node→Python, Node→Java, Python→Node, Python/Node→Go (ver sección 09)</td></tr>
+                <tr><td>Comunicación entre microservicios</td><td>2</td><td>Java→Node, Node→Python, Node→Java, Python→Java, Python/Java/Node→Go (ver sección 09)</td></tr>
                 <tr><td>README con diagrama</td><td>1</td><td><code>README.md</code> con diagrama, tabla de servicios e instrucciones</td></tr>
-                <tr><td><strong>BONUS</strong> API Gateway Nginx</td><td>+2</td><td><code>nginx/nginx.conf</code>: único punto de entrada, con HTTPS (el puerto 80 redirige al 443)</td></tr>
+                <tr><td><strong>BONUS</strong> API Gateway Nginx</td><td>+2</td><td><code>nginx/nginx.conf</code>: único punto de entrada (los microservicios no publican puertos), con HTTPS (el puerto 80 redirige al 443)</td></tr>
               </tbody>
             </table>
           </div>
@@ -95,6 +95,7 @@
         <section class="bloque" id="arquitectura">
           <h2><span class="n">02</span>Arquitectura</h2>
           <p>El navegador solo habla con Nginx (HTTPS, puerto 443; el 80 redirige). Nginx reparte cada ruta <code>/api/...</code> a su microservicio.
+            Los microservicios no publican puertos: solo se llega a ellos a través de Nginx.
             Los servicios se comunican entre sí por la red interna de Docker usando el nombre del servicio como dirección.</p>
           <div class="card diagrama">
             <svg viewBox="0 0 860 470" role="img" aria-label="Diagrama de arquitectura">
@@ -167,9 +168,13 @@
     id = Column(Integer, primary_key=True)
     email = Column(String(160), unique=True, nullable=False, index=True)
     password_hash = Column(String(100), nullable=False)   <span class="c"># nunca la clave en texto plano</span>
-    rol = Column(String(20), default=<span class="k">"estudiante"</span>)
+    rol = Column(String(20), default=<span class="k">"estudiante"</span>)          <span class="c"># admin | profesor | estudiante</span>
+    estado = Column(String(20), default=<span class="k">"sin_verificar"</span>)   <span class="c"># -> en_espera -> activo | rechazado | desactivado</span>
 
-Base.metadata.create_all(engine)   <span class="c"># crea la tabla al arrancar</span></pre>
+<span class="k">class</span> ClaveAnterior(Base):          <span class="c"># historial: no se puede repetir una clave ya usada</span>
+    usuario_id = Column(Integer, ForeignKey(<span class="k">"usuarios.id"</span>, ondelete=<span class="k">"CASCADE"</span>))
+
+Base.metadata.create_all(engine)   <span class="c"># crea las tablas al arrancar (usuarios, codigos, perfiles, claves_anteriores)</span></pre>
 
           <div class="file">servicio-clases-java/.../Clase.java + ClaseRepo.java — Spring Data JPA</div>
 <pre class="code"><span class="k">@Entity</span>
@@ -215,7 +220,7 @@ db.Where(<span class="k">"usuario_id = ?"</span>, uid).Order(<span class="k">"cr
           <h2><span class="n">05</span>MongoDB + Mongoose (NoSQL)</h2>
           <div class="qcp">
             <div class="card"><h4>Qué es</h4><p>Base de datos de documentos JSON, sin esquema rígido. Mongoose agrega modelos y validación desde Node.js.</p></div>
-            <div class="card"><h4>Cómo lo usamos</h4><p>El servicio de IA guarda el contenido de cada presentación y las 5 preguntas + respuestas de cada estudiante.</p></div>
+            <div class="card"><h4>Cómo lo usamos</h4><p>El servicio de IA guarda el contenido de cada presentación, las preguntas + respuestas de cada estudiante (5 por defecto, el profesor elige de 1 a 20) y las dudas del chat.</p></div>
             <div class="card"><h4>Por qué</h4><p>Cada presentación tiene un número distinto de diapositivas y las preguntas van anidadas: un documento lo representa natural, sin tablas intermedias.</p></div>
           </div>
           <div class="file">servicio-ia-node/src/modelos.js</div>
@@ -223,12 +228,13 @@ db.Where(<span class="k">"usuario_id = ?"</span>, uid).Order(<span class="k">"cr
   claseId:        { type: Number, required: true, unique: true },
   diapositivas:   [{ n: Number, titulo: String, texto: String, explicacion: String }],
   publicado:      { type: Boolean, default: <span class="k">false</span> },
+  preguntasPorEstudiante: { type: Number, default: 5, min: 1, max: 20 },
   preguntasUsadas: [String],   <span class="c">// para que ninguna pregunta se repita entre estudiantes</span>
 });
 
 <span class="k">const</span> asignacionSchema = <span class="k">new</span> mongoose.Schema({
   claseId: Number, estudianteId: Number,
-  preguntas: [{ texto: String, respuesta: String }],   <span class="c">// exactamente 5</span>
+  preguntas: [{ texto: String, respuesta: String }],   <span class="c">// N preguntas, distintas a las de otros estudiantes</span>
   entregada: { type: Boolean, default: <span class="k">false</span> },
 });
 asignacionSchema.index({ claseId: 1, estudianteId: 1 }, { unique: <span class="k">true</span> });</pre>
@@ -245,6 +251,7 @@ asignacionSchema.index({ claseId: 1, estudianteId: 1 }, { unique: <span class="k
                 <tr><td><strong>networks</strong></td><td><code>backend</code> (BDs + servicios) y <code>frontend</code> (gateway + servicios)</td><td>Nginx no puede ver las bases de datos; solo los servicios llegan a ellas</td></tr>
                 <tr><td><strong>healthcheck</strong></td><td>Postgres (<code>pg_isready</code>), Mongo (<code>mongosh ping</code>) y cada servicio (<code>/health</code>)</td><td>Saber cuándo un contenedor está <em>listo</em>, no solo encendido</td></tr>
                 <tr><td><strong>depends_on</strong></td><td><code>condition: service_healthy</code> en todos</td><td>Los servicios esperan a su BD y el gateway espera a los 4 servicios</td></tr>
+                <tr><td><strong>ports</strong></td><td>Solo el gateway publica <code>80</code> y <code>443</code> (y Mailpit el <code>8025</code>); los microservicios no</td><td>Toda petición pasa por HTTPS, la verificación de sesión y el límite de intentos de Nginx</td></tr>
                 <tr><td><strong>volumes</strong></td><td><code>pgdata</code>, <code>mongodata</code>, <code>uploads</code></td><td>Usuarios, clases y presentaciones sobreviven a <code>docker compose down</code></td></tr>
               </tbody>
             </table>
@@ -258,7 +265,7 @@ asignacionSchema.index({ claseId: 1, estudianteId: 1 }, { unique: <span class="k
     depends_on:
       postgres:
         condition: service_healthy <span class="c"># espera a que pg_isready responda</span>
-    networks: [backend, frontend]
+    networks: [backend, frontend]    <span class="c"># sin "ports": solo el gateway entra</span>
     healthcheck:
       test: [<span class="k">"CMD"</span>, <span class="k">"wget"</span>, <span class="k">"-qO-"</span>, <span class="k">"http://localhost:8080/health"</span>]</pre>
           <p>Además los Dockerfiles de Java y Go son <strong>multi-stage</strong>: compilan con la imagen completa (Maven / Go) y copian solo el resultado a una imagen pequeña.</p>
@@ -269,7 +276,7 @@ asignacionSchema.index({ claseId: 1, estudianteId: 1 }, { unique: <span class="k
           <h2><span class="n">07</span>Variables de entorno</h2>
           <div class="qcp">
             <div class="card"><h4>Qué es</h4><p>Un archivo <code>.env</code> con credenciales y configuración que se inyecta a cada contenedor con <code>env_file</code>.</p></div>
-            <div class="card"><h4>Cómo lo usamos</h4><p>En el repo solo está <code>.env.example</code>. Ahí van las claves de BD, el JWT, la API key de la IA y el SMTP.</p></div>
+            <div class="card"><h4>Cómo lo usamos</h4><p>En el repo solo está <code>.env.example</code>. Ahí van las claves de BD, el JWT, la API key de la IA y el SMTP (por defecto Mailpit; pasar a Gmail es cambiar 5 variables).</p></div>
             <div class="card"><h4>Por qué</h4><p>Nunca subimos secretos a GitHub (<code>.env</code> está en <code>.gitignore</code>) y quien lo evalúa configura el sistema sin tocar código.</p></div>
           </div>
 <pre class="code"><span class="c"># Python</span>   DATABASE_URL = os.getenv(<span class="k">"DATABASE_URL_AUTH"</span>)
@@ -290,9 +297,16 @@ asignacionSchema.index({ claseId: 1, estudianteId: 1 }, { unique: <span class="k
 <pre class="code">upstream clases_svc { server servicio-clases:8080; }
 
 location /api/clases/ {
+  auth_request /_verificar;          <span class="c"># ¿la cuenta sigue activa? (pregunta a Python)</span>
   proxy_pass http://clases_svc/;     <span class="c"># /api/clases/temas  ->  servicio-clases:8080/temas</span>
   proxy_read_timeout 300s;           <span class="c"># la IA puede tardar</span>
-}</pre>
+}
+
+location = /api/auth/login {
+  limit_req zone=acceso burst=5 nodelay;   <span class="c"># 10 intentos por minuto por IP -> 429</span>
+}
+
+location ~ ^/api/[^/]+/interno/ { return 404; }   <span class="c"># las rutas internas no existen desde afuera</span></pre>
         </section>
 
         <!-- ============================================================ -->
@@ -313,6 +327,7 @@ location /api/clases/ {
             <li>Cuando alguien se registra, <strong>Python → Go</strong> <code>POST /interno/correo</code> envía el código de 6 dígitos y <em>espera</em> el resultado (si el correo no sale, se lo dice al usuario).</li>
             <li>Cuando un estudiante solicita inscribirse, <strong>Java → Go</strong> avisa al profesor; al aprobarlo, <strong>Java</strong> lo agrega a la sección, <strong>Java → Node</strong> le asigna las preguntas de las clases ya publicadas y <strong>Java → Go</strong> le avisa.</li>
             <li>Cada vez que cambian las secciones o la lista de asistencia, <strong>Java</strong> calcula quién tiene acceso y se lo envía a <strong>Node</strong>.</li>
+            <li>Cuando se elimina una cuenta (el admin o el propio usuario), <strong>Python → Java</strong> <code>DELETE /interno/estudiantes/{id}</code> la saca de sus secciones.</li>
           </ol>
           <p>Además los 4 servicios validan el mismo <strong>JWT</strong> (firmado con <code>SECRET_KEY</code>) sin tener que consultar al servicio de auth en cada petición.</p>
         </section>
@@ -322,11 +337,15 @@ location /api/clases/ {
           <h2><span class="n">10</span>Login y claves encriptadas</h2>
           <div class="qcp">
             <div class="card"><h4>bcrypt</h4><p>La clave se guarda como hash con sal aleatoria. Ni la base de datos ni el administrador pueden leerla; solo se puede verificar.</p></div>
-            <div class="card"><h4>JWT</h4><p>Al iniciar sesión Python firma un token con id, nombre y rol, válido 12 horas. El frontend lo envía en <code>Authorization: Bearer</code>.</p></div>
+            <div class="card"><h4>JWT</h4><p>Al iniciar sesión Python firma un token con id, nombre y rol, válido 12 horas (30 días con <em>Recordarme</em>). El frontend lo envía en <code>Authorization: Bearer</code>.</p></div>
             <div class="card"><h4>Código por correo</h4><p>Al registrarse se envía un código de 6 dígitos (<code>secrets</code>, hasheado, vence en 10 min, 5 intentos). Sin confirmarlo no se puede entrar. También recupera la clave.</p></div>
+            <div class="card"><h4>Correo real</h4><p>Antes de crear la cuenta se consulta el DNS (registros MX): un dominio que no existe o no recibe correo, como <code>gmail.con</code>, se rechaza. Un registro nunca verificado no bloquea la cédula.</p></div>
+            <div class="card"><h4>Claves anteriores</h4><p>Al recuperar la clave no se puede repetir ni la actual ni una anterior: se guarda el historial de hashes bcrypt y se compara solo después de validar el código.</p></div>
             <div class="card"><h4>Lista de espera</h4><p>Un profesor verifica su correo pero queda <code>en_espera</code> hasta que el administrador lo aprueba: así un estudiante no puede hacerse pasar por profesor.</p></div>
             <div class="card"><h4>Revocación inmediata</h4><p>Nginx usa <code>auth_request</code> para preguntarle a Python en cada petición si la cuenta sigue activa: desactivar a alguien corta su sesión al instante en los 4 servicios.</p></div>
             <div class="card"><h4>Roles</h4><p>Tres roles: administrador, profesor y estudiante. El profesor solo ve y modifica lo suyo (403 si es de otro). Cada servicio verifica el rol <em>y</em> la pertenencia con lo que dice el token firmado.</p></div>
+            <div class="card"><h4>Límite de intentos</h4><p>Nginx acepta 10 intentos por minuto por IP en login, registro y recuperar clave (429 después): frena adivinar claves o códigos.</p></div>
+            <div class="card"><h4>Mi cuenta</h4><p>Cada usuario tiene un perfil opcional con foto (máx. 2 MB) y puede eliminar su cuenta; para eliminarla se le pide la clave otra vez.</p></div>
           </div>
 <pre class="code"><span class="k">def</span> hash_password(password):
     <span class="k">return</span> bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
@@ -339,7 +358,7 @@ location /api/clases/ {
           <h2><span class="n">11</span>Inteligencia Artificial</h2>
           <div class="qcp">
             <div class="card"><h4>Explicar diapositivas</h4><p>Se extrae el texto de cada diapositiva (pdf-parse / lectura del XML del PPTX) y la IA redacta una explicación de 60–140 palabras por diapositiva.</p></div>
-            <div class="card"><h4>5 preguntas distintas</h4><p>La IA genera un banco de 5 × N preguntas, se eliminan duplicados y se reparten. Las ya usadas se guardan para no repetirlas con estudiantes nuevos.</p></div>
+            <div class="card"><h4>Preguntas distintas</h4><p>El profesor elige cuántas por estudiante (5 por defecto). La IA genera un banco, se eliminan duplicados y se reparten. Las ya usadas se guardan para no repetirlas con estudiantes nuevos.</p></div>
             <div class="card"><h4>Modo demo</h4><p>Si no hay API key, el sistema sigue funcionando con explicaciones y preguntas por plantillas, para que siempre se pueda evaluar.</p></div>
           </div>
           <div class="qcp">
