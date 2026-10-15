@@ -2,12 +2,24 @@
 Microservicio de AUTENTICACION y USUARIOS — Python + FastAPI + SQLAlchemy + PostgreSQL
 
 Gateway: https://localhost/api/auth/...
-  POST   /login               -> token JWT
-  GET    /me                  -> datos del usuario del token
-  GET    /usuarios            -> lista (profesor o servicio interno), filtro ?rol=
-  POST   /usuarios            -> crear usuario (solo profesor), opcionalmente inscrito en secciones
-  PATCH  /usuarios/{id}       -> editar / activar / cambiar clave
-  DELETE /usuarios/{id}       -> eliminar
+  GET    /health                         -> estado del servicio
+  POST   /registro                     -> crea la cuenta sin verificar y envia un codigo al correo
+  POST   /registro/verificar             -> confirma el codigo (estudiante: activo; profesor: lista de espera)
+  POST   /registro/reenviar              -> otro codigo de verificacion
+  POST   /recuperar                      -> envia un codigo para poner una clave nueva
+  POST   /recuperar/confirmar            -> codigo + clave nueva (no puede ser una ya usada)
+  POST   /login                          -> token JWT
+  GET    /me                             -> datos del usuario del token
+  GET    /admin/profesores               -> profesores, filtro ?estado=en_espera (solo admin)
+  POST   /admin/profesores/{id}/aprobar  -> aprobar profesor en espera (solo admin)
+  POST   /admin/profesores/{id}/rechazar -> rechazar profesor en espera (solo admin)
+  GET    /admin/usuarios                 -> todos los usuarios, filtro ?rol= (solo admin)
+  PATCH  /admin/usuarios/{id}            -> activar / desactivar (solo admin)
+  DELETE /admin/usuarios/{id}            -> eliminar (solo admin)
+
+Solo entre servicios:
+  GET    /verificar                      -> el gateway (auth_request) pregunta si la cuenta sigue activa
+  GET    /usuarios                       -> lista con filtro ?rol= (exige el INTERNAL_TOKEN)
 """
 import logging
 import os
