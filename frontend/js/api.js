@@ -26,7 +26,9 @@ const API = {
       opciones.body = JSON.stringify(cuerpo);
     }
     const res = await fetch(`/api/${ruta}`, opciones);
-    if (res.status === 401 && this.token && !ruta.startsWith('auth/login')) { this.salir(); return; }
+    // 401 = no hay sesion valida: token vencido, cuenta desactivada, o la sesion se cerro en otra pestana (todas
+    // comparten localStorage). Siempre se vuelve al ingreso; si no, la pestana quedaria mostrando "Falta el token".
+    if (res.status === 401 && !ruta.startsWith('auth/login')) { this.salir(); return; }
     const texto = await res.text();
     let data = null;
     try { data = texto ? JSON.parse(texto) : null; } catch { data = texto; }
@@ -55,6 +57,14 @@ const API = {
   patch(r, b) { return this.pedir('PATCH', r, b); },
   del(r) { return this.pedir('DELETE', r); },
 };
+
+// Las pestanas del mismo navegador comparten la sesion (localStorage). Si otra pestana la cierra o entra con otra
+// cuenta, esta se pone al dia; si no, seguiria mostrando a un usuario mientras envia el token de otro (o ninguno).
+window.addEventListener('storage', (e) => {
+  if (e.key !== 'token' && e.key !== null) return;
+  if (API.token) location.href = '/app.html';                         // entro alguien: a la app con esa cuenta
+  else if (location.pathname.startsWith('/app')) location.href = '/'; // cerro la sesion: al ingreso
+});
 
 function toast(msg, error = false) {
   let t = document.getElementById('toast');
