@@ -2,7 +2,7 @@
 import os
 
 from dotenv import load_dotenv
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, create_engine, func
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, LargeBinary, String, create_engine, func
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 load_dotenv()  # en Docker las variables ya vienen de env_file: .env
@@ -34,6 +34,22 @@ class Usuario(Base):
     def activo(self) -> bool:
         """Solo una cuenta en estado 'activo' puede entrar al sistema."""
         return self.estado == "activo"
+
+
+class Perfil(Base):
+    """Datos opcionales que el usuario cuenta de si mismo, y su foto. Tabla aparte (1 a 1 con usuarios) para no
+    tener que alterar la tabla usuarios de las bases que ya existen: create_all crea las tablas nuevas."""
+    __tablename__ = "perfiles"
+
+    usuario_id = Column(Integer, ForeignKey("usuarios.id", ondelete="CASCADE"), primary_key=True)
+    sobre_mi = Column(String(500))
+    carrera = Column(String(120))
+    semestre = Column(Integer)
+    edad = Column(Integer)
+    trabaja = Column(Boolean)                   # NULL = prefiere no decirlo
+    foto = Column(LargeBinary)                  # imagen ya recortada a 400x400 por el navegador
+    foto_tipo = Column(String(20))              # image/jpeg | image/png | image/webp
+    actualizado_en = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class ClaveAnterior(Base):

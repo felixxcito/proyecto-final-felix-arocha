@@ -10,6 +10,12 @@ Gateway: https://localhost/api/auth/...
   POST   /recuperar/confirmar            -> codigo + clave nueva (no puede ser una ya usada)
   POST   /login                          -> token JWT
   GET    /me                             -> datos del usuario del token
+  DELETE /me                             -> eliminar la cuenta propia (pide la clave otra vez)
+  GET    /me/perfil                      -> sobre mi, carrera, semestre, edad, si trabaja (todo opcional)
+  PUT    /me/perfil                      -> guardar esos datos
+  GET    /me/foto                        -> foto de perfil
+  PUT    /me/foto                        -> subir foto (JPG, PNG o WEBP, maximo 2 MB)
+  DELETE /me/foto                        -> quitar la foto
   GET    /admin/profesores               -> profesores, filtro ?estado=en_espera (solo admin)
   POST   /admin/profesores/{id}/aprobar  -> aprobar profesor en espera (solo admin)
   POST   /admin/profesores/{id}/rechazar -> rechazar profesor en espera (solo admin)
@@ -28,13 +34,13 @@ from typing import Optional
 
 import httpx
 import jwt
-from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Response
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from . import codigos
-from .database import Base, ClaveAnterior, SessionLocal, Usuario, engine, get_db
+from .database import Base, ClaveAnterior, Perfil, SessionLocal, Usuario, engine, get_db
 from .dominio_correo import dominio_recibe_correo
 from .security import (
     INTERNAL_TOKEN,
@@ -111,6 +117,19 @@ class RecuperarConfirmarIn(BaseModel):
     email: str
     codigo: str = Field(min_length=6, max_length=6)
     nueva_clave: str = Field(min_length=8, max_length=72, alias="nuevaClave")
+
+
+class PerfilIn(BaseModel):
+    """Todo es opcional: lo que venga vacio o no venga queda en blanco."""
+    sobre_mi: Optional[str] = Field(default=None, max_length=500, alias="sobreMi")
+    carrera: Optional[str] = Field(default=None, max_length=120)
+    semestre: Optional[int] = Field(default=None, ge=1, le=12)
+    edad: Optional[int] = Field(default=None, ge=14, le=99)
+    trabaja: Optional[bool] = None  # None = prefiere no decirlo
+
+
+class EliminarCuentaIn(BaseModel):
+    password: str
 
 
 class EstadoIn(BaseModel):
@@ -305,6 +324,95 @@ def me(user: dict = Depends(usuario_actual), db: Session = Depends(get_db)):
     return a_json(u)
 
 
+@app.delete("/me", status_code=204)
+def eliminar_mi_cuenta(datos: EliminarCuentaIn, user: dict = Depends(usuario_actual), db: Session = Depends(get_db)):
+    """El usuario borra su propia cuenta. Pide la clave otra vez: con solo el token (por ejemplo una sesion
+    que quedo abierta en una computadora prestada) nadie puede borrar la cuenta de otro."""
+    u = db.get(Usuario, int(user["sub"]))
+    if not u:
+        raise HTTPException(404, "Usuario no existe")
+    if u.rol == "admin":
+        # Si el admin se borrara, nadie podria aprobar profesores (y al reiniciar se volveria a crear desde el .env)
+        raise HTTPException(403, "La cuenta del administrador no se puede eliminar")
+    if not verify_password(datos.password, u.password_hash):
+        raise HTTPException(403, "La clave no es correcta")  # 403 y no 401: el 401 cierra la sesion en el frontend
+    eliminar_usuario(db, u)
+
+
+# ----------------------------------------------------------------- perfil (todo opcional)
+def perfil_de(db: Session, uid: int) -> Perfil:
+    return db.get(Perfil, uid) or Perfil(usuario_id=uid)
+
+
+def texto_o_nada(s: Optional[str]) -> Optional[str]:
+    return s.strip() or None if s else None
+
+
+@app.get("/me/perfil")
+def ver_perfil(user: dict = Depends(usuario_actual), db: Session = Depends(get_db)):
+    p = perfil_de(db, int(user["sub"]))
+    return {"sobreMi": p.sobre_mi, "carrera": p.carrera, "semestre": p.semestre, "edad": p.edad,
+            "trabaja": p.trabaja, "tieneFoto": p.foto is not None}
+
+
+@app.put("/me/perfil")
+def guardar_perfil(datos: PerfilIn, user: dict = Depends(usuario_actual), db: Session = Depends(get_db)):
+    p = perfil_de(db, int(user["sub"]))
+    p.sobre_mi, p.carrera = texto_o_nada(datos.sobre_mi), texto_o_nada(datos.carrera)
+    p.semestre, p.edad, p.trabaja = datos.semestre, datos.edad, datos.trabaja
+    db.add(p)
+    db.commit()
+    return ver_perfil(user, db)
+
+
+MAX_FOTO = 2 * 1024 * 1024
+
+
+def tipo_imagen(datos: bytes) -> Optional[str]:
+    """Reconoce la imagen por sus primeros bytes y no por el Content-Type, que lo escribe quien la envia.
+    SVG no se acepta: puede llevar JavaScript adentro."""
+    if datos.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if datos.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if datos[:4] == b"RIFF" and datos[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
+@app.put("/me/foto")
+async def subir_foto(request: Request, user: dict = Depends(usuario_actual), db: Session = Depends(get_db)):
+    """El cuerpo es la imagen tal cual (el navegador ya la recorto a 400x400), sin formulario multipart."""
+    datos = await request.body()
+    if len(datos) > MAX_FOTO:
+        raise HTTPException(413, "La foto no puede pasar de 2 MB")
+    tipo = tipo_imagen(datos)
+    if not tipo:
+        raise HTTPException(415, "La foto debe ser JPG, PNG o WEBP")
+    p = perfil_de(db, int(user["sub"]))
+    p.foto, p.foto_tipo = datos, tipo
+    db.add(p)
+    db.commit()
+    return {"tieneFoto": True}
+
+
+@app.get("/me/foto")
+def ver_foto(user: dict = Depends(usuario_actual), db: Session = Depends(get_db)):
+    p = db.get(Perfil, int(user["sub"]))
+    if not p or p.foto is None:
+        raise HTTPException(404, "Sin foto")
+    return Response(content=p.foto, media_type=p.foto_tipo,
+                    headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
+
+
+@app.delete("/me/foto", status_code=204)
+def quitar_foto(user: dict = Depends(usuario_actual), db: Session = Depends(get_db)):
+    p = db.get(Perfil, int(user["sub"]))
+    if p:
+        p.foto = p.foto_tipo = None
+        db.commit()
+
+
 @app.get("/usuarios")
 def listar(rol: Optional[str] = None, _=Depends(solo_interno), db: Session = Depends(get_db)):
     q = db.query(Usuario)
@@ -389,9 +497,15 @@ def admin_eliminar(uid: int, user=Depends(solo_admin), db: Session = Depends(get
         raise HTTPException(404, "Usuario no existe")
     if u.id == int(user["sub"]):
         raise HTTPException(400, "No puedes eliminar tu propia cuenta")
+    eliminar_usuario(db, u)
+
+
+def eliminar_usuario(db: Session, u: Usuario):
+    """Borra la cuenta (su perfil, codigos e historial de claves se borran en cascada en la base) y le pide
+    a Java que la saque de las secciones donde estaba inscrita."""
+    uid = u.id
     db.delete(u)
     db.commit()
-    # Python -> Java: sacarlo de las secciones donde estaba inscrito
     try:
         httpx.delete(f"{CLASES_URL}/interno/estudiantes/{uid}", headers={"X-Internal-Token": INTERNAL_TOKEN}, timeout=10)
     except httpx.HTTPError as e:
