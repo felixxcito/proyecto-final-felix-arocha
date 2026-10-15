@@ -19,11 +19,11 @@ function explicarDemo(diapositivas, titulo) {
 
 const PLANTILLAS = [
   (t) => `Explica con tus propias palabras que es "${t}".`,
-  (t) => `¿Por que es importante "${t}" en un proyecto de software?`,
+  (t) => `¿Por que es importante "${t}" dentro de esta materia?`,
   (t) => `Da un ejemplo practico donde aplicarias "${t}".`,
   (t) => `¿Que problema resuelve "${t}"? Justifica tu respuesta.`,
-  (t) => `¿Que pasaria en un sistema real si no se tuviera en cuenta "${t}"?`,
-  (t) => `Describe paso a paso como implementarias "${t}".`,
+  (t) => `¿Que pasaria en un caso real si no se tuviera en cuenta "${t}"?`,
+  (t) => `Describe paso a paso como aplicarias "${t}".`,
   (t) => `Menciona una ventaja y una desventaja de "${t}".`,
   (t) => `¿Como le explicarias "${t}" a un compañero que falto a clase?`,
 ];
