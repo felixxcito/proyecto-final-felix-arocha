@@ -3,13 +3,26 @@ const API = {
   get token() { return localStorage.getItem('token'); },
   get usuario() { try { return JSON.parse(localStorage.getItem('usuario')); } catch { return null; } },
 
-  guardarSesion({ token, usuario }) {
+  // Sin "Recordarme" la sesion debe acabar al cerrar el navegador. Se sigue guardando en localStorage (para que
+  // todas las pestanas la compartan) y se marca con una cookie de sesion, que el navegador borra al cerrarse.
+  guardarSesion({ token, usuario }, recordarme = false) {
     localStorage.setItem('token', token);
     localStorage.setItem('usuario', JSON.stringify(usuario));
+    if (recordarme) {
+      localStorage.setItem('recordarme', '1');
+    } else {
+      localStorage.removeItem('recordarme');
+      document.cookie = 'sesion_abierta=1; path=/; SameSite=Strict';
+    }
   },
-  salir() {
+  borrarSesion() {
     localStorage.removeItem('token');
     localStorage.removeItem('usuario');
+    localStorage.removeItem('recordarme');
+    document.cookie = 'sesion_abierta=; path=/; max-age=0';
+  },
+  salir() {
+    this.borrarSesion();
     location.href = '/';
   },
 
@@ -57,6 +70,11 @@ const API = {
   patch(r, b) { return this.pedir('PATCH', r, b); },
   del(r) { return this.pedir('DELETE', r); },
 };
+
+// Sesion sin "Recordarme" de un navegador que ya se cerro: la cookie de sesion desaparecio, asi que se descarta
+if (API.token && localStorage.getItem('recordarme') !== '1' && !document.cookie.includes('sesion_abierta=1')) {
+  API.borrarSesion();
+}
 
 // Las pestanas del mismo navegador comparten la sesion (localStorage). Si otra pestana la cierra o entra con otra
 // cuenta, esta se pone al dia; si no, seguiria mostrando a un usuario mientras envia el token de otro (o ninguno).

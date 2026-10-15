@@ -64,12 +64,13 @@ const Cuenta = (() => {
       btn.disabled = true;
       error.textContent = '';
       try {
+        const recordarme = document.getElementById('recordarme').checked;
         const sesion = await API.post('auth/login', {
           email: document.getElementById('email').value,
           password: document.getElementById('password').value,
-          recordarme: document.getElementById('recordarme').checked,
+          recordarme,
         });
-        API.guardarSesion(sesion);
+        API.guardarSesion(sesion, recordarme);
         location.href = '/app.html';
       } catch (err) {
         // Cuenta sin confirmar: el servidor responde 403 con accion=verificar y ya reenvio el codigo
