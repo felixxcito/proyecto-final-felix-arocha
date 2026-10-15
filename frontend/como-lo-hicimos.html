@@ -345,6 +345,7 @@ location ~ ^/api/[^/]+/interno/ { return 404; }   <span class="c"># las rutas in
             <div class="card"><h4>Revocación inmediata</h4><p>Nginx usa <code>auth_request</code> para preguntarle a Python en cada petición si la cuenta sigue activa: desactivar a alguien corta su sesión al instante en los 4 servicios.</p></div>
             <div class="card"><h4>Roles</h4><p>Tres roles: administrador, profesor y estudiante. El profesor solo ve y modifica lo suyo (403 si es de otro). Cada servicio verifica el rol <em>y</em> la pertenencia con lo que dice el token firmado.</p></div>
             <div class="card"><h4>Límite de intentos</h4><p>Nginx acepta 10 intentos por minuto por IP en login, registro y recuperar clave (429 después): frena adivinar claves o códigos.</p></div>
+            <div class="card"><h4>Panel del admin</h4><p>Arriba muestra cuántos estudiantes y profesores hay, cuántos están activos, los profesores en espera y el total. Se cuenta en el navegador con la misma lista de <code>/admin/usuarios</code> (solo admin), sin otra consulta.</p></div>
             <div class="card"><h4>Mi cuenta</h4><p>Cada usuario tiene un perfil opcional con foto (máx. 2 MB) y puede eliminar su cuenta; para eliminarla se le pide la clave otra vez.</p></div>
           </div>
 <pre class="code"><span class="k">def</span> hash_password(password):
