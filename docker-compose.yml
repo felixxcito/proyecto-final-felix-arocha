@@ -36,10 +36,11 @@ services:
     networks: [backend]
 
   # ------------------------------------------------------------ Microservicios
+  # Sin "ports": no se pueden alcanzar desde fuera de Docker. Solo el gateway entra a ellos por la red
+  # interna, asi toda peticion pasa por HTTPS, la verificacion de sesion y el limite de intentos de Nginx.
   servicio-auth:                 # Python + FastAPI + SQLAlchemy -> Postgres
     build: ./servicio-auth-python
     env_file: .env
-    ports: ["8001:8000"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -52,7 +53,6 @@ services:
   servicio-clases:               # Java + Spring Boot + JPA -> Postgres
     build: ./servicio-clases-java
     env_file: .env
-    ports: ["8003:8080"]
     volumes:
       - uploads:/data/uploads
     depends_on:
@@ -67,7 +67,6 @@ services:
   servicio-ia:                   # Node + Express + Mongoose -> MongoDB
     build: ./servicio-ia-node
     env_file: .env
-    ports: ["8002:3000"]
     depends_on:
       mongodb:
         condition: service_healthy
@@ -80,7 +79,6 @@ services:
   servicio-notificaciones:       # Go + Gin + GORM -> Postgres
     build: ./servicio-notificaciones-go
     env_file: .env
-    ports: ["8004:8080"]
     depends_on:
       postgres:
         condition: service_healthy
