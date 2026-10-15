@@ -36,6 +36,16 @@ class Usuario(Base):
         return self.estado == "activo"
 
 
+class ClaveAnterior(Base):
+    """Hash bcrypt de una clave que el usuario ya tuvo. Sirve para no dejarlo repetir una clave vieja."""
+    __tablename__ = "claves_anteriores"
+
+    id = Column(Integer, primary_key=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True)
+    password_hash = Column(String(100), nullable=False)
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class Codigo(Base):
     """Codigo de 6 digitos enviado por correo (para verificar la cuenta o recuperar la clave)."""
     __tablename__ = "codigos"

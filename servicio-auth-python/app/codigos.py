@@ -68,8 +68,9 @@ def emitir(db: Session, usuario: Usuario, proposito: str) -> None:
                   "Si no lo pediste tu, ignora este mensaje.")
 
 
-def validar(db: Session, usuario: Usuario, proposito: str, codigo: str) -> None:
-    """Comprueba el codigo. Si es correcto lo marca como usado; si no, lanza un error HTTP."""
+def validar(db: Session, usuario: Usuario, proposito: str, codigo: str, consumir: bool = True) -> Codigo:
+    """Comprueba el codigo. Si es correcto lo marca como usado; si no, lanza un error HTTP.
+    Con consumir=False lo deja vigente: quien llama lo marca como usado cuando termina su propia validacion."""
     ahora = datetime.now(timezone.utc)
     c = (db.query(Codigo).filter_by(usuario_id=usuario.id, proposito=proposito, usado=False)
          .order_by(Codigo.id.desc()).first())
@@ -86,5 +87,7 @@ def validar(db: Session, usuario: Usuario, proposito: str, codigo: str) -> None:
         raise HTTPException(400, f"Codigo incorrecto. Te quedan {quedan} intento(s)." if quedan
                             else "Codigo incorrecto. Pide un codigo nuevo.")
 
-    c.usado = True
-    db.commit()
+    if consumir:
+        c.usado = True
+        db.commit()
+    return c

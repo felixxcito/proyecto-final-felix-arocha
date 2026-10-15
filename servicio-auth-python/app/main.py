@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from . import codigos
-from .database import Base, SessionLocal, Usuario, engine, get_db
+from .database import Base, ClaveAnterior, SessionLocal, Usuario, engine, get_db
 from .dominio_correo import dominio_recibe_correo
 from .security import (
     INTERNAL_TOKEN,
@@ -252,7 +252,15 @@ def recuperar_confirmar(datos: RecuperarConfirmarIn, db: Session = Depends(get_d
     u = db.query(Usuario).filter_by(email=datos.email.strip().lower()).first()
     if not u or u.estado == "sin_verificar":
         raise HTTPException(400, "El codigo venció o no existe. Pide uno nuevo.")
-    codigos.validar(db, u, "recuperar", datos.codigo)
+    # Primero el codigo: si se revisara la clave antes, cualquiera sin el codigo podria probar claves y
+    # averiguar cual tiene (o tuvo) la cuenta. El codigo se consume al final, para que si la clave se
+    # rechaza el usuario pueda intentar con otra sin pedir un codigo nuevo.
+    c = codigos.validar(db, u, "recuperar", datos.codigo, consumir=False)
+    anteriores = [a.password_hash for a in db.query(ClaveAnterior).filter_by(usuario_id=u.id)]
+    if any(verify_password(datos.nueva_clave, h) for h in [u.password_hash, *anteriores]):
+        raise HTTPException(409, "Ya usaste esa clave antes. Elige una que no hayas usado.")
+    c.usado = True
+    db.add(ClaveAnterior(usuario_id=u.id, password_hash=u.password_hash))
     u.password_hash = hash_password(datos.nueva_clave)
     db.commit()
     return {"mensaje": "Clave actualizada. Ya puedes iniciar sesion."}
