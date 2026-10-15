@@ -17,7 +17,7 @@ Guarda aquí las capturas con **exactamente estos nombres** (el README ya las en
 | `11-servicios-en-vivo.png` | Los 4 servicios en verde | https://localhost/como-lo-hicimos.html#estado |
 | `12-health-terminal.png` | Los 4 `curl .../health` en la terminal | Terminal |
 | `14-registro-codigo.png` | Pantalla de las 6 casillas del código | Registrarse → confirmar |
-| `15-admin-lista-espera.png` | Panel del administrador con un profesor esperando | Entrar como admin |
+| `15-admin-lista-espera.png` | Panel del administrador: tarjetas con el conteo de estudiantes y profesores, y un profesor esperando | Entrar como admin |
 | `16-catalogo-inscribirme.png` | Catálogo con profesores, materias y horarios | Estudiante → Inscribirme |
 | `17-solicitudes-profesor.png` | Solicitudes con nombre, cédula y correo | Profesor → Clases |
 | `13-docker-compose-ps.png` | `docker compose ps` con todo *healthy* | Terminal |

@@ -21,7 +21,7 @@ Una plataforma de clases con tres tipos de cuenta, como una web normal:
 - **"Pregúntale a la IA":** un botón pequeño abajo a la derecha abre un chat que conoce la diapositiva que el estudiante está viendo. El profesor ve en **"Dudas a la IA"** qué preguntó cada alumno, en qué diapositiva y qué le respondió la IA.
 - Los estudiantes **responden** y entregan; el profesor de esa clase ve todas las respuestas y recibe el aviso.
 - **Notificaciones** con campanita en la web y **por correo** (códigos, solicitudes, aprobaciones, clase nueva, preguntas asignadas, entregas).
-- El **administrador general** también puede activar o desactivar cuentas: una cuenta desactivada **pierde el acceso al instante** en los 4 servicios.
+- El **administrador general** ve arriba de su panel **cuántos usuarios hay, separados en estudiantes y profesores** (con cuántos están activos, cuántos profesores esperan aprobación y el total). También puede activar o desactivar cuentas: una cuenta desactivada **pierde el acceso al instante** en los 4 servicios.
 - La página **"Cómo lo construimos"** (`https://localhost/como-lo-hicimos.html`) explica cada requisito de la Clase 12 con el código real y muestra el estado de los servicios en vivo.
 
 ## Arquitectura
@@ -196,7 +196,7 @@ Lo que ya protege el sistema:
 Necesitas tres navegadores o ventanas distintas (una normal y dos de incógnito) para tener varias sesiones a la vez.
 
 1. **Profesor:** pestaña *Registrarse* → rol **Profesor** → llena los datos → el código de 6 dígitos llega a Mailpit (http://localhost:8025) → escríbelo. Queda *en lista de espera*.
-2. **Administrador** (`admin@ujap.edu.ve`): en **Administración** aparece el profesor → **Aprobar**. El profesor recibe un correo.
+2. **Administrador** (`admin@ujap.edu.ve`): en **Administración** las tarjetas de arriba cuentan los estudiantes y profesores (el profesor nuevo suma *1 en espera*) y abajo aparece el profesor → **Aprobar**. El profesor recibe un correo y pasa a contar como activo.
 3. **Profesor:** inicia sesión → **Secciones** → *+ Nueva materia* → *+ Sección* con su horario.
 4. **Estudiante:** *Registrarse* (con su cédula) → confirma el código → **Inscribirme** → elige la sección del profesor → *Solicitar inscripción*.
 5. **Profesor:** en **Clases** aparece **Solicitudes pendientes** con nombre, cédula y correo → **Aprobar**. El estudiante recibe la notificación.
@@ -249,7 +249,7 @@ proyecto-final-felix-arocha/
 
 | Código de verificación (6 casillas) | Panel del administrador |
 |---|---|
-| ![Código de verificación](docs/capturas/14-registro-codigo.png) | ![Lista de espera de profesores](docs/capturas/15-admin-lista-espera.png) |
+| ![Código de verificación](docs/capturas/14-registro-codigo.png) | ![Conteo de usuarios y lista de espera de profesores](docs/capturas/15-admin-lista-espera.png) |
 
 | Catálogo "Inscribirme" | Solicitudes del profesor (nombre, cédula y correo) |
 |---|---|
