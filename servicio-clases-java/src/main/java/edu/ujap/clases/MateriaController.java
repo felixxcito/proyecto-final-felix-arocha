@@ -1,7 +1,11 @@
 package edu.ujap.clases;
 
 import io.jsonwebtoken.Claims;
+import java.io.IOException;
+import java.nio.file.*;
 import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,24 +26,29 @@ import org.springframework.web.server.ResponseStatusException;
  *   DELETE /secciones/{id}/estudiantes/{eid} -> dar de baja a un estudiante
  * Internos (Python -> Java):
  *   DELETE /interno/estudiantes/{id}       -> sacar a un estudiante eliminado de sus secciones
+ *   DELETE /interno/profesores/{id}        -> profesor eliminado: borrar sus materias con todo lo que tienen
+ *   GET    /interno/profesores/{pid}/estudiantes/{eid} -> 204 si el estudiante esta en una seccion del profesor
  */
 @RestController
 public class MateriaController {
+  private static final Logger log = LoggerFactory.getLogger(MateriaController.class);
   private final MateriaRepo materias;
   private final SeccionRepo secciones;
   private final ClaseRepo clases;
   private final SolicitudRepo solicitudes;
   private final Auth auth;
   private final Acceso acceso;
+  private final IaCliente ia;
 
   public MateriaController(MateriaRepo materias, SeccionRepo secciones, ClaseRepo clases, SolicitudRepo solicitudes,
-      Auth auth, Acceso acceso) {
+      Auth auth, Acceso acceso, IaCliente ia) {
     this.materias = materias;
     this.secciones = secciones;
     this.clases = clases;
     this.solicitudes = solicitudes;
     this.auth = auth;
     this.acceso = acceso;
+    this.ia = ia;
   }
 
   record MateriaIn(String nombre, String codigo, String descripcion) {}
@@ -199,7 +208,52 @@ public class MateriaController {
     return ResponseEntity.noContent().build();
   }
 
+  /** Profesor eliminado: se borran sus materias con todo lo que tienen (secciones, solicitudes, temas, sus
+   *  archivos y el contenido de IA de cada tema). Python lo llama ANTES de borrar la cuenta: si esto falla,
+   *  la cuenta no se borra y no quedan materias sin dueno. */
+  @Transactional
+  @DeleteMapping("/interno/profesores/{id}")
+  public ResponseEntity<Void> borrarProfesor(@PathVariable Long id,
+      @RequestHeader(value = "X-Internal-Token", required = false) String t) {
+    auth.interno(t);
+    for (Materia m : materias.findByProfesorId(id)) {
+      for (Clase c : clases.findByMateriaId(m.getId())) {
+        borrarArchivo(c.getArchivoRuta());
+        borrarArchivo(c.getPdfRuta());
+        clases.delete(c);
+        try {
+          ia.delete("/interno/clases/" + c.getId());
+        } catch (Exception e) {
+          log.warn("No se pudo borrar el contenido IA de la clase {}: {}", c.getId(), e.getMessage());
+        }
+      }
+      for (Seccion s : m.getSecciones()) solicitudes.deleteBySeccion_Id(s.getId());
+      materias.delete(m);
+    }
+    return ResponseEntity.noContent().build();
+  }
+
+  /** Python pregunta si el estudiante esta inscrito en alguna seccion del profesor antes de mostrarle su perfil. */
+  @Transactional(readOnly = true)
+  @GetMapping("/interno/profesores/{profesorId}/estudiantes/{estudianteId}")
+  public ResponseEntity<Void> esSuEstudiante(@PathVariable Long profesorId, @PathVariable Long estudianteId,
+      @RequestHeader(value = "X-Internal-Token", required = false) String t) {
+    auth.interno(t);
+    boolean es = secciones.deEstudiante(estudianteId).stream()
+        .anyMatch(s -> profesorId.equals(s.getMateria().getProfesorId()));
+    return es ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
+  }
+
   // ----------------------------------------------------------------- utilidades
+  private static void borrarArchivo(String ruta) {
+    if (ruta == null) return;
+    try {
+      Files.deleteIfExists(Path.of(ruta));
+    } catch (IOException e) {
+      log.warn("No se pudo borrar el archivo {}: {}", ruta, e.getMessage());
+    }
+  }
+
   private Materia materia(Long id) {
     return materias.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Materia no existe"));
   }

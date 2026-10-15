@@ -7,4 +7,5 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface MateriaRepo extends JpaRepository<Materia, Long> {
   List<Materia> findAllByOrderByNombreAsc();
+  List<Materia> findByProfesorId(Long profesorId);
 }

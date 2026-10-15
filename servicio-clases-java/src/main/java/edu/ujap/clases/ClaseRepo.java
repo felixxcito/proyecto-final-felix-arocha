@@ -16,6 +16,7 @@ public interface ClaseRepo extends JpaRepository<Clase, Long> {
   List<Clase> findByMateriaIdAndEstado(Long materiaId, String estado);
 
   boolean existsByMateriaId(Long materiaId);
+  List<Clase> findByMateriaId(Long materiaId);
 
   /** Actualiza solo la vista, sin pisar el estado que escribe el servicio de IA al mismo tiempo. */
   @Transactional
