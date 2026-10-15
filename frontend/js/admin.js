@@ -15,9 +15,27 @@ const Admin = (() => {
     ]);
     const yo = API.usuario;
 
+    // Conteo por rol a partir de la misma lista de cuentas (no hace falta otro endpoint)
+    const contar = (rol) => {
+      const delRol = usuarios.filter((u) => u.rol === rol);
+      return { total: delRol.length, activos: delRol.filter((u) => u.estado === 'activo').length };
+    };
+    const activos = (n) => `${n} ${n === 1 ? 'activo' : 'activos'}`;
+    const est = contar('estudiante');
+    const prof = contar('profesor');
+    const tarjeta = (titulo, n, detalle) => `
+      <div class="card stat"><span class="stat-titulo">${titulo}</span>
+        <strong class="stat-num">${n}</strong><span class="muted">${detalle}</span></div>`;
+
     destino.innerHTML = `
       <div class="page-head"><div><h1>Administración</h1>
         <p class="muted" style="margin:0">Aprueba a los profesores que se registran y gestiona las cuentas del sistema.</p></div></div>
+
+      <div class="stats">
+        ${tarjeta('Estudiantes', est.total, activos(est.activos))}
+        ${tarjeta('Profesores', prof.total, `${activos(prof.activos)} · ${espera.length} en espera`)}
+        ${tarjeta('Total de usuarios', est.total + prof.total, 'estudiantes y profesores')}
+      </div>
 
       <div class="card" style="margin-bottom:1rem">
         <h2>Profesores esperando aprobación <span class="badge ${espera.length ? 'warn' : ''}">${espera.length}</span></h2>
