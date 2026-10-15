@@ -14,9 +14,19 @@ const LLAMADAS_EN_PARALELO = 3;
 const activo = () => Boolean(PROVEEDOR === 'gemini' ? GEMINI_KEY : NVIDIA_KEY);
 const MODELO = PROVEEDOR === 'gemini' ? `Gemini ${GEMINI_MODEL}` : `NVIDIA ${NVIDIA_MODEL}`;
 
-const CONTEXTO = 'Eres asistente docente de la materia "Lenguajes de Programacion" (LPR07304) de la Universidad '
-  + 'Jose Antonio Paez, Venezuela. Escribes en espanol claro para estudiantes universitarios.';
-const SISTEMA = `${CONTEXTO} Respondes UNICAMENTE con JSON valido, sin texto adicional ni bloques de codigo markdown.`;
+// La institucion es la misma para todo el sistema (.env); la materia llega con cada clase desde Java,
+// asi el mismo servicio sirve para cualquier profesor y cualquier materia.
+const INSTITUCION = process.env.INSTITUCION;
+
+/** Rol de la IA segun la materia de la clase. Sin materia, un asistente docente general. */
+function contexto(materia) {
+  const cual = materia?.nombre ? ` de la materia "${materia.nombre}"${materia.codigo ? ` (${materia.codigo})` : ''}` : '';
+  return `Eres asistente docente${cual}. Escribes en espanol claro para estudiantes universitarios.`
+    + (INSTITUCION ? ` La institucion es ${INSTITUCION}.` : '')
+    + (materia?.descripcion ? ` La materia trata sobre: ${materia.descripcion.slice(0, 500)}` : '');
+}
+const sistemaJSON = (materia) => `${contexto(materia)}
+Respondes UNICAMENTE con JSON valido, sin texto adicional ni bloques de codigo markdown.`;
 
 /** Extrae el JSON aunque el modelo lo envuelva en ```json ... ``` o agregue texto. */
 function parsearJSON(texto) {
@@ -100,8 +110,8 @@ async function gemini(sistema, mensajes, temperatura, json = true) {
 }
 
 /** Envia el prompt al proveedor configurado y devuelve el JSON de la respuesta (1 reintento). */
-async function pedirJSON(prompt, temperatura = 0.5) {
-  const llamar = () => (PROVEEDOR === 'gemini' ? gemini : nvidia)(SISTEMA, [{ role: 'user', content: prompt }], temperatura);
+async function pedirJSON(materia, prompt, temperatura = 0.5) {
+  const llamar = () => (PROVEEDOR === 'gemini' ? gemini : nvidia)(sistemaJSON(materia), [{ role: 'user', content: prompt }], temperatura);
   try {
     return parsearJSON(await llamar());
   } catch (e) {
@@ -114,10 +124,11 @@ async function pedirJSON(prompt, temperatura = 0.5) {
  * Chat del visor: el estudiante pregunta sobre la diapositiva que esta viendo.
  * `historial` son las preguntas/respuestas anteriores de ese estudiante en esa diapositiva.
  */
-async function responderDuda({ titulo, resumen, diapositiva, historial, pregunta }) {
-  const sistema = `${CONTEXTO}
+async function responderDuda({ materia, titulo, resumen, diapositiva, historial, pregunta }) {
+  const sistema = `${contexto(materia)}
 Eres un tutor paciente. El estudiante esta viendo la diapositiva ${diapositiva.n} ("${diapositiva.titulo}") de la clase "${titulo}".
-Responde su duda en 40 a 180 palabras, con ejemplos sencillos y, si ayuda, un fragmento corto de codigo.
+Responde su duda en 40 a 180 palabras, con ejemplos sencillos y, si ayuda, un fragmento corto de codigo, una formula o un caso
+segun lo que use la materia.
 Si la pregunta no tiene relacion con la materia, indicalo amablemente y vuelve al tema. Escribe en texto plano (sin markdown pesado).
 
 Resumen de la clase: ${resumen}
@@ -132,13 +143,13 @@ ${diapositiva.explicacion}`;
   return texto.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 }
 
-async function explicarPresentacion({ titulo, descripcion, diapositivas }) {
+async function explicarPresentacion({ materia, titulo, descripcion, diapositivas }) {
   const grupos = [];
   for (let i = 0; i < diapositivas.length; i += DIAPOS_POR_LLAMADA) grupos.push(diapositivas.slice(i, i + DIAPOS_POR_LLAMADA));
 
   const explicarGrupo = async (grupo) => {
     const texto = grupo.map((d) => `--- Diapositiva ${d.n} ---\n${d.texto || '(sin texto, diapositiva visual)'}`).join('\n\n');
-    const r = await pedirJSON(`El profesor subio la presentacion de la clase "${titulo}". ${descripcion ? `Descripcion: ${descripcion}` : ''}
+    const r = await pedirJSON(materia, `El profesor subio la presentacion de la clase "${titulo}". ${descripcion ? `Descripcion: ${descripcion}` : ''}
 Para CADA una de estas ${grupo.length} diapositivas escribe una explicacion de 60 a 140 palabras que desarrolle lo
 que muestra, explique el porque de cada concepto y, si hay codigo, que hace ese codigo. No inventes contenido ajeno al tema.
 Usa exactamente los mismos numeros de diapositiva.
@@ -157,18 +168,19 @@ ${texto}`, 0.4);
     tandas.forEach((t) => resultado.push(...t));
   }
 
-  const r = await pedirJSON(`Escribe un resumen general (3 a 5 oraciones) de la clase "${titulo}" a partir de estas explicaciones.
+  const r = await pedirJSON(materia, `Escribe un resumen general (3 a 5 oraciones) de la clase "${titulo}" a partir de estas explicaciones.
 Formato: {"resumen":"..."}
 
 ${resultado.map((d) => `(${d.n}) ${d.titulo}: ${d.explicacion}`).join('\n').slice(0, 12000)}`, 0.4);
   return { resumen: r.resumen, diapositivas: resultado };
 }
 
-async function generarPreguntas({ titulo, resumen, diapositivas, cantidad, evitar }) {
+async function generarPreguntas({ materia, titulo, resumen, diapositivas, cantidad, porEstudiante, evitar }) {
   const material = diapositivas.map((d) => `(${d.n}) ${d.titulo}: ${d.explicacion || d.texto}`).join('\n').slice(0, 12000);
-  const r = await pedirJSON(`Genera ${Math.min(cantidad, 40)} preguntas DISTINTAS entre si sobre la clase "${titulo}" para evaluar a los estudiantes.
-Cada estudiante recibira 5 de ellas, asi que deben cubrir temas variados y tener dificultad similar.
-Mezcla preguntas conceptuales, de aplicacion practica, de analisis de codigo y de comparacion.
+  const r = await pedirJSON(materia, `Genera ${Math.min(cantidad, 40)} preguntas DISTINTAS entre si sobre la clase "${titulo}" para evaluar a los estudiantes.
+Cada estudiante recibira ${porEstudiante} de ellas, asi que deben cubrir temas variados y tener dificultad similar.
+Mezcla preguntas conceptuales, de aplicacion practica, de analisis y de comparacion. Si el contenido trae codigo, formulas,
+ejercicios o casos, incluye preguntas sobre ellos.
 Deben poder responderse en 3 a 8 lineas. No numeres las preguntas.
 ${evitar.length ? `NO repitas ni parafrasees ninguna de estas preguntas ya usadas:\n- ${evitar.join('\n- ')}` : ''}
 

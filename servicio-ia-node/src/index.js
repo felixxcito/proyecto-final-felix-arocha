@@ -73,7 +73,7 @@ const h = (fn) => (req, res, next) => fn(req, res, next).catch((e) => {
 // ------------------------------------------------------------------ logica de IA
 
 /** Extrae el texto, pide a la IA (o al modo demo) la explicacion y guarda en Mongo. */
-async function procesar({ claseId, titulo, descripcion, nombreArchivo, tipo, base64 }) {
+async function procesar({ claseId, materia, titulo, descripcion, nombreArchivo, tipo, base64 }) {
   try {
     const buffer = Buffer.from(base64, 'base64');
     const diapositivas = await extraerDiapositivas(buffer, tipo);
@@ -82,7 +82,7 @@ async function procesar({ claseId, titulo, descripcion, nombreArchivo, tipo, bas
     let resultado;
     let modo = 'demo';
     if (ia.activo()) {
-      resultado = await ia.explicarPresentacion({ titulo, descripcion, diapositivas });
+      resultado = await ia.explicarPresentacion({ materia, titulo, descripcion, diapositivas });
       modo = 'ia';
     } else {
       resultado = explicarDemo(diapositivas, titulo);
@@ -128,8 +128,8 @@ async function preguntasNuevas(contenido, cantidad) {
       try {
         const faltan = cantidad - nuevas.length;
         agregar(await ia.generarPreguntas({
-          titulo: contenido.titulo, resumen: contenido.resumen, diapositivas: contenido.diapositivas,
-          cantidad: faltan + 3, evitar: [...usadas, ...nuevas].slice(-150),
+          materia: contenido.materia, titulo: contenido.titulo, resumen: contenido.resumen, diapositivas: contenido.diapositivas,
+          cantidad: faltan + 3, porEstudiante: contenido.preguntasPorEstudiante || 5, evitar: [...usadas, ...nuevas].slice(-150),
         }));
       } catch (e) {
         console.error('La IA fallo generando preguntas:', e.message);
@@ -194,10 +194,10 @@ function asignarPreguntas(claseId, estudiantes) {
 
 // ------------------------------------------------------------------ endpoints internos
 app.post('/interno/procesar', soloInterno, h(async (req, res) => {
-  const { claseId, profesorId, titulo, descripcion, nombreArchivo, tipo } = req.body;
+  const { claseId, profesorId, materia, titulo, descripcion, nombreArchivo, tipo } = req.body;
   await Contenido.updateOne(
     { claseId },
-    { $set: { profesorId: Number(profesorId), titulo, descripcion, nombreArchivo, tipo, estado: 'procesando', error: null } },
+    { $set: { profesorId: Number(profesorId), materia, titulo, descripcion, nombreArchivo, tipo, estado: 'procesando', error: null } },
     { upsert: true },
   );
   res.status(202).json({ ok: true });
@@ -205,10 +205,11 @@ app.post('/interno/procesar', soloInterno, h(async (req, res) => {
 }));
 
 app.post('/interno/asignar', soloInterno, h(async (req, res) => {
-  const { claseId, profesorId, privada, permitidos, preguntasPorEstudiante } = req.body;
+  const { claseId, profesorId, materia, privada, permitidos, preguntasPorEstudiante } = req.body;
   await Contenido.updateOne({ claseId }, {
     publicado: true,
     ...(profesorId ? { profesorId: Number(profesorId) } : {}),
+    ...(materia ? { materia } : {}),
     privada: Boolean(privada),
     permitidos: (permitidos || []).map(Number),
     preguntasPorEstudiante: Math.min(20, Math.max(1, Number(preguntasPorEstudiante) || 5)),
@@ -262,7 +263,7 @@ app.post('/clases/:id/regenerar', conToken, soloProfesor, h(async (req, res) => 
   if (!c) return;
   if (!c.diapositivas?.length) return res.status(404).json({ detail: 'No hay diapositivas para regenerar' });
   const resultado = ia.activo()
-    ? await ia.explicarPresentacion({ titulo: c.titulo, descripcion: c.descripcion, diapositivas: c.diapositivas })
+    ? await ia.explicarPresentacion({ materia: c.materia, titulo: c.titulo, descripcion: c.descripcion, diapositivas: c.diapositivas })
     : explicarDemo(c.diapositivas, c.titulo);
   const porNumero = new Map(resultado.diapositivas.map((d) => [Number(d.n), d]));
   c.diapositivas.forEach((d) => { if (porNumero.has(d.n)) d.explicacion = porNumero.get(d.n).explicacion; });
@@ -332,7 +333,7 @@ app.post('/clases/:id/consultas', conToken, h(async (req, res) => {
   const pregunta = String(req.body.pregunta || '').trim().slice(0, 1000);
   if (!pregunta) return res.status(400).json({ detail: 'Escribe tu pregunta' });
 
-  const c = await Contenido.findOne({ claseId }, 'titulo resumen diapositivas publicado privada permitidos');
+  const c = await Contenido.findOne({ claseId }, 'materia titulo resumen diapositivas publicado privada permitidos');
   if (!c) return res.status(404).json({ detail: 'Esta clase no tiene contenido' });
   if (!tieneAcceso(c, req.usuario)) return res.status(403).json({ detail: sinAcceso(c) });
   const diapositiva = c.diapositivas.find((d) => d.n === n);
@@ -342,7 +343,7 @@ app.post('/clases/:id/consultas', conToken, h(async (req, res) => {
   let respuesta;
   let modo = 'ia';
   if (ia.activo()) {
-    respuesta = await ia.responderDuda({ titulo: c.titulo, resumen: c.resumen, diapositiva, historial, pregunta });
+    respuesta = await ia.responderDuda({ materia: c.materia, titulo: c.titulo, resumen: c.resumen, diapositiva, historial, pregunta });
   } else {
     modo = 'demo';
     respuesta = `(Modo demo) Recibí tu pregunta sobre "${diapositiva.titulo}". Con una API key configurada, aquí la IA `

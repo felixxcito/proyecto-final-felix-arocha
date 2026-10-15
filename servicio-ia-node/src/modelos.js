@@ -13,6 +13,8 @@ const diapositivaSchema = new mongoose.Schema({
 const contenidoSchema = new mongoose.Schema({
   claseId: { type: Number, required: true, unique: true },
   profesorId: Number,   // dueno de la clase (id del usuario en el servicio de auth); lo envia Java
+  // Materia del tema (copia de lo que envia Java): el contexto de la IA cambia segun la materia
+  materia: { nombre: String, codigo: String, descripcion: String },
   titulo: String,
   descripcion: String,
   nombreArchivo: String,
