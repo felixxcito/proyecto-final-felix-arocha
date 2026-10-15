@@ -46,6 +46,7 @@ const Secciones = (() => {
         <p class="muted">${esc(etiqueta(materia))}${seccion.horario ? ` · ${esc(seccion.horario)}` : ''}. Entran cuando apruebas su solicitud.</p>
         <div class="lista-asistencia">${lista.map((u) => `
           <div class="asistente" style="cursor:default">
+            <span class="avatar" data-avatar="${u.id}"></span>
             <span class="grow"><strong>${esc(u.nombre)}</strong><br><span class="muted">${esc(u.cedula || '')}${u.email ? ` · ${esc(u.email)}` : ''}</span></span>
             <button class="btn small" data-perfil="${u.id}">Ver perfil</button>
             <button class="btn small danger" data-quitar="${u.id}">Dar de baja</button></div>`).join('')
@@ -53,6 +54,9 @@ const Secciones = (() => {
         <div class="row" style="justify-content:flex-end;margin-top:1rem"><button class="btn" data-cerrar>Cerrar</button></div>
       </div>`;
     document.body.appendChild(m);
+    // Foto de cada estudiante (o sus iniciales si no tiene)
+    m.querySelectorAll('[data-avatar]').forEach((el) =>
+      Perfil.pintarAvatar(el, lista.find((u) => String(u.id) === el.dataset.avatar)));
     m.querySelector('[data-cerrar]').onclick = () => m.remove();
     m.onclick = async (e) => {
       const verPerfil = e.target.closest('[data-perfil]');
