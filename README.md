@@ -179,6 +179,7 @@ Cambie `SECRET_KEY` (mínimo 32 caracteres), `INTERNAL_TOKEN`, `DB_PASS` y `ADMI
 Lo que ya protege el sistema:
 
 - Claves con **bcrypt**; los códigos de correo se guardan **hasheados**, vencen en 10 minutos y se bloquean a los 5 intentos fallidos.
+- Al recuperar la clave **no se puede repetir una clave ya usada** (ni la actual ni las anteriores): se guarda el historial de sus hashes bcrypt y se compara solo después de validar el código, para que nadie sin el código pueda probar claves.
 - **Un profesor solo ve y modifica lo suyo** (materias, secciones, temas, solicitudes, respuestas y dudas): los demás reciben 403.
 - El gateway **limita a 10 intentos por minuto** el ingreso, el registro y la recuperación de clave (responde 429).
 - Una cuenta **desactivada o eliminada pierde el acceso al instante**, aunque tenga un token vigente.
