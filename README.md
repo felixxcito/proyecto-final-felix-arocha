@@ -58,16 +58,18 @@ Redes de Docker: `backend` (bases de datos, Mailpit y servicios) y `frontend` (g
 
 ## Microservicios
 
-| Servicio | Lenguaje | Puerto (host → contenedor) | Base de datos / ORM | Endpoints principales (vía gateway) |
+| Servicio | Lenguaje | Puerto | Base de datos / ORM | Endpoints principales (vía gateway) |
 |---|---|---|---|---|
-| `servicio-auth` | Python 3.12 · FastAPI | 8001 → 8000 | PostgreSQL `auth_db` · SQLAlchemy | `POST /api/auth/registro`, `/registro/verificar`, `/registro/reenviar`, `POST /api/auth/login`, `/recuperar`, `/recuperar/confirmar`, `GET /api/auth/me`, `GET /api/auth/admin/profesores`, `POST …/admin/profesores/:id/aprobar\|rechazar`, `GET/PATCH/DELETE /api/auth/admin/usuarios` |
-| `servicio-ia` | Node.js 20 · Express | 8002 → 3000 | MongoDB `aula_ia` · Mongoose | `GET/PUT /api/ia/clases/:id/contenido`, `GET/POST /api/ia/clases/:id/consultas`, `GET/PUT /api/ia/clases/:id/mis-preguntas`, `GET /api/ia/clases/:id/respuestas` |
-| `servicio-clases` | Java 21 · Spring Boot 3 | 8003 → 8080 | PostgreSQL `clases_db` · Spring Data JPA | `GET/POST/PUT/DELETE /api/clases/materias`, `POST /api/clases/materias/:id/secciones`, `DELETE /api/clases/secciones/:id/estudiantes/:eid`, `GET /api/clases/catalogo`, `POST/GET /api/clases/solicitudes`, `PUT /api/clases/solicitudes/:id`, `GET/POST/PUT/DELETE /api/clases/temas`, `POST /api/clases/temas/:id/presentacion`, `POST /api/clases/temas/:id/publicar`, `PUT /api/clases/temas/:id/configuracion`, `GET /api/clases/temas/:id/diapositivas.pdf` |
-| `servicio-notificaciones` | Go 1.25 · Gin | 8004 → 8080 | PostgreSQL `notif_db` · GORM | `GET /api/notificaciones/`, `PATCH /api/notificaciones/:id/leida`, `POST /api/notificaciones/leer-todas` |
-| `gateway` | Nginx | **443** → 443 (el 80 redirige a HTTPS) | — | Frontend + `/api/*` |
-| `mailpit` | — | 8025 → 8025 | — | Bandeja de correos de prueba |
+| `servicio-auth` | Python 3.12 · FastAPI | 8000 (solo red interna) | PostgreSQL `auth_db` · SQLAlchemy | `POST /api/auth/registro`, `/registro/verificar`, `/registro/reenviar`, `POST /api/auth/login`, `/recuperar`, `/recuperar/confirmar`, `GET /api/auth/me`, `GET /api/auth/admin/profesores`, `POST …/admin/profesores/:id/aprobar\|rechazar`, `GET/PATCH/DELETE /api/auth/admin/usuarios` |
+| `servicio-ia` | Node.js 20 · Express | 3000 (solo red interna) | MongoDB `aula_ia` · Mongoose | `GET/PUT /api/ia/clases/:id/contenido`, `GET/POST /api/ia/clases/:id/consultas`, `GET/PUT /api/ia/clases/:id/mis-preguntas`, `GET /api/ia/clases/:id/respuestas` |
+| `servicio-clases` | Java 21 · Spring Boot 3 | 8080 (solo red interna) | PostgreSQL `clases_db` · Spring Data JPA | `GET/POST/PUT/DELETE /api/clases/materias`, `POST /api/clases/materias/:id/secciones`, `DELETE /api/clases/secciones/:id/estudiantes/:eid`, `GET /api/clases/catalogo`, `POST/GET /api/clases/solicitudes`, `PUT /api/clases/solicitudes/:id`, `GET/POST/PUT/DELETE /api/clases/temas`, `POST /api/clases/temas/:id/presentacion`, `POST /api/clases/temas/:id/publicar`, `PUT /api/clases/temas/:id/configuracion`, `GET /api/clases/temas/:id/diapositivas.pdf` |
+| `servicio-notificaciones` | Go 1.25 · Gin | 8080 (solo red interna) | PostgreSQL `notif_db` · GORM | `GET /api/notificaciones/`, `PATCH /api/notificaciones/:id/leida`, `POST /api/notificaciones/leer-todas` |
+| `gateway` | Nginx | **443** en el host (el 80 redirige a HTTPS) | — | Frontend + `/api/*` |
+| `mailpit` | — | 8025 en el host | — | Bandeja de correos de prueba |
 
-Todos exponen `GET /health`.
+El gateway es el **único punto de entrada** a la aplicación: desde fuera de Docker solo se llega a él (y a Mailpit, la bandeja de correos de prueba, que no forma parte de la aplicación). Los microservicios y las bases de datos solo existen en la red interna de Docker, así que toda petición pasa por HTTPS, la verificación de sesión y el límite de intentos de Nginx.
+
+Todos exponen `GET /health` (desde fuera, a través del gateway: `/api/<servicio>/health`).
 
 ### Comunicación entre microservicios
 
