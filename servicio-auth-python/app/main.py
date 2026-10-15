@@ -16,6 +16,8 @@ Gateway: https://localhost/api/auth/...
   GET    /me/foto                        -> foto de perfil
   PUT    /me/foto                        -> subir foto (JPG, PNG o WEBP, maximo 2 MB)
   DELETE /me/foto                        -> quitar la foto
+  GET    /usuarios/{id}/perfil           -> perfil de otro (solo un profesor, de sus estudiantes)
+  GET    /usuarios/{id}/foto             -> foto de otro (misma regla)
   GET    /admin/profesores               -> profesores, filtro ?estado=en_espera (solo admin)
   POST   /admin/profesores/{id}/aprobar  -> aprobar profesor en espera (solo admin)
   POST   /admin/profesores/{id}/rechazar -> rechazar profesor en espera (solo admin)
@@ -348,11 +350,49 @@ def texto_o_nada(s: Optional[str]) -> Optional[str]:
     return s.strip() or None if s else None
 
 
-@app.get("/me/perfil")
-def ver_perfil(user: dict = Depends(usuario_actual), db: Session = Depends(get_db)):
-    p = perfil_de(db, int(user["sub"]))
+def perfil_json(db: Session, uid: int) -> dict:
+    p = perfil_de(db, uid)
     return {"sobreMi": p.sobre_mi, "carrera": p.carrera, "semestre": p.semestre, "edad": p.edad,
             "trabaja": p.trabaja, "tieneFoto": p.foto is not None}
+
+
+def foto_de(db: Session, uid: int) -> Response:
+    p = db.get(Perfil, uid)
+    if not p or p.foto is None:
+        raise HTTPException(404, "Sin foto")
+    return Response(content=p.foto, media_type=p.foto_tipo,
+                    headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
+
+
+def exigir_ver_perfil(user: dict, uid: int):
+    """Un profesor solo ve el perfil de los estudiantes inscritos en sus secciones. Las secciones son de Java,
+    asi que Python le pregunta (Python -> Java)."""
+    if user["rol"] != "profesor":
+        raise HTTPException(403, "Solo un profesor puede ver el perfil de sus estudiantes")
+    try:
+        r = httpx.get(f"{CLASES_URL}/interno/profesores/{user['sub']}/estudiantes/{uid}",
+                      headers={"X-Internal-Token": INTERNAL_TOKEN}, timeout=10)
+    except httpx.HTTPError:
+        raise HTTPException(502, "No se pudo consultar el servicio de clases")
+    if r.status_code != 204:
+        raise HTTPException(403, "Ese estudiante no esta en ninguna de tus secciones")
+
+
+@app.get("/me/perfil")
+def ver_perfil(user: dict = Depends(usuario_actual), db: Session = Depends(get_db)):
+    return perfil_json(db, int(user["sub"]))
+
+
+@app.get("/usuarios/{uid}/perfil")
+def ver_perfil_de(uid: int, user: dict = Depends(usuario_actual), db: Session = Depends(get_db)):
+    exigir_ver_perfil(user, uid)
+    return perfil_json(db, uid)
+
+
+@app.get("/usuarios/{uid}/foto")
+def ver_foto_de(uid: int, user: dict = Depends(usuario_actual), db: Session = Depends(get_db)):
+    exigir_ver_perfil(user, uid)
+    return foto_de(db, uid)
 
 
 @app.put("/me/perfil")
@@ -398,11 +438,7 @@ async def subir_foto(request: Request, user: dict = Depends(usuario_actual), db:
 
 @app.get("/me/foto")
 def ver_foto(user: dict = Depends(usuario_actual), db: Session = Depends(get_db)):
-    p = db.get(Perfil, int(user["sub"]))
-    if not p or p.foto is None:
-        raise HTTPException(404, "Sin foto")
-    return Response(content=p.foto, media_type=p.foto_tipo,
-                    headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
+    return foto_de(db, int(user["sub"]))
 
 
 @app.delete("/me/foto", status_code=204)
@@ -502,8 +538,16 @@ def admin_eliminar(uid: int, user=Depends(solo_admin), db: Session = Depends(get
 
 def eliminar_usuario(db: Session, u: Usuario):
     """Borra la cuenta (su perfil, codigos e historial de claves se borran en cascada en la base) y le pide
-    a Java que la saque de las secciones donde estaba inscrita."""
+    a Java que la saque de las secciones donde estaba inscrita. Si es profesor, antes Java borra sus materias."""
     uid = u.id
+    if u.rol == "profesor":
+        # Primero las materias: si Java falla, la cuenta no se borra y no quedan materias sin dueno
+        try:
+            httpx.delete(f"{CLASES_URL}/interno/profesores/{uid}", headers={"X-Internal-Token": INTERNAL_TOKEN},
+                         timeout=60).raise_for_status()
+        except httpx.HTTPError as e:
+            log.warning("No se pudieron borrar las materias del profesor %s: %s", uid, e)
+            raise HTTPException(502, "No se pudieron borrar las materias del profesor; la cuenta no se elimino. Intenta de nuevo.")
     db.delete(u)
     db.commit()
     try:
