@@ -41,7 +41,7 @@ const Admin = (() => {
             <td>${ROLES[u.rol] || esc(u.rol)}</td><td>${badge(u.estado)}</td>
             <td><div class="row" style="justify-content:flex-end;flex-wrap:nowrap">${u.id === Number(yo.id) ? '<span class="muted">Tú</span>' : `
               ${['activo', 'desactivado'].includes(u.estado) ? `<button class="btn small" data-accion="estado" data-id="${u.id}" data-estado="${u.estado === 'activo' ? 'desactivado' : 'activo'}">${u.estado === 'activo' ? 'Desactivar' : 'Activar'}</button>` : ''}
-              <button class="btn small danger" data-accion="borrar" data-id="${u.id}">Eliminar</button>`}</div></td>
+              <button class="btn small danger" data-accion="borrar" data-id="${u.id}" data-rol="${u.rol}">Eliminar</button>`}</div></td>
           </tr>`).join('')}</tbody></table></div>
       </div>`;
 
@@ -58,7 +58,9 @@ const Admin = (() => {
           await API.patch(`auth/admin/usuarios/${id}`, { estado: b.dataset.estado });
           toast(b.dataset.estado === 'activo' ? 'Cuenta activada' : 'Cuenta desactivada: pierde el acceso al instante');
         } else if (b.dataset.accion === 'borrar') {
-          if (!confirm('¿Eliminar esta cuenta? No se puede deshacer.')) return;
+          if (!confirm(b.dataset.rol === 'profesor'
+            ? '¿Eliminar a este profesor? También se borran todas sus materias con sus secciones y temas. No se puede deshacer.'
+            : '¿Eliminar esta cuenta? No se puede deshacer.')) return;
           await API.del(`auth/admin/usuarios/${id}`); toast('Cuenta eliminada');
         }
         vista(destino);

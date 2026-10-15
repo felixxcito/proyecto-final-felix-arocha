@@ -3,11 +3,11 @@ const Perfil = (() => {
   const iniciales = (nombre) => String(nombre || '?').split(/\s+/).filter(Boolean).slice(0, 2)
     .map((p) => p[0].toUpperCase()).join('');
 
-  /** Pone la foto en un elemento .avatar, o las iniciales del nombre si no hay foto. */
-  async function pintarAvatar(el) {
+  /** Pone la foto en un elemento .avatar, o las iniciales del nombre si no hay foto. Sin usuario: la propia. */
+  async function pintarAvatar(el, usuario) {
     if (!el) return;
-    el.textContent = iniciales(API.usuario?.nombre);
-    const url = await API.foto();
+    el.textContent = iniciales((usuario || API.usuario)?.nombre);
+    const url = await API.foto(usuario?.id);
     if (url) el.innerHTML = `<img src="${url}" alt="">`;
   }
 
@@ -41,7 +41,8 @@ const Perfil = (() => {
 
     destino.innerHTML = `
       <div class="page-head"><div><h1>Mi perfil</h1>
-        <p class="muted" style="margin:0">Todo lo de esta página es opcional: llena solo lo que quieras.</p></div></div>
+        <p class="muted" style="margin:0">Todo lo de esta página es opcional: llena solo lo que quieras.${yo.rol === 'estudiante'
+          ? ' Los profesores de tus secciones pueden ver tu foto y estos datos.' : ''}</p></div></div>
       <div class="perfil-grid">
         <div class="card perfil-foto">
           <div class="avatar grande" id="avatarGrande"></div>
@@ -74,7 +75,7 @@ const Perfil = (() => {
           <h2>Eliminar mi cuenta</h2>
           ${yo.rol === 'admin'
             ? '<p class="muted" style="margin:0">La cuenta del administrador no se puede eliminar: sin ella nadie podría aprobar a los profesores.</p>'
-            : `<p class="muted">Se borran tu cuenta, tu perfil y tu foto, y sales de todas tus secciones. No se puede deshacer.</p>
+            : `<p class="muted">${textoEliminar(yo.rol)} No se puede deshacer.</p>
                <button class="btn danger" id="btnEliminar">Eliminar mi cuenta</button>`}
         </div>
       </div>`;
@@ -116,13 +117,47 @@ const Perfil = (() => {
     if (eliminar) eliminar.onclick = modalEliminar;
   }
 
+  const textoEliminar = (rol) => (rol === 'profesor'
+    ? 'Se borran tu cuenta, tu perfil, tu foto y <strong>todas tus materias</strong> con sus secciones, temas y presentaciones.'
+    : 'Se borran tu cuenta, tu perfil y tu foto, y sales de todas tus secciones.');
+
+  /** El profesor ve el perfil de uno de sus estudiantes (solo lectura). u = {id, nombre, cedula, email}. */
+  async function modalVer(u) {
+    const m = document.createElement('div');
+    m.className = 'modal';
+    m.innerHTML = '<div class="card"><div class="row"><div class="spinner"></div> Cargando perfil...</div></div>';
+    document.body.appendChild(m);
+    m.onclick = (e) => { if (e.target === m || e.target.closest('[data-cerrar]')) m.remove(); };
+    try {
+      const p = await API.get(`auth/usuarios/${u.id}/perfil`);
+      const datos = [
+        ['¿Qué estudia?', p.carrera],
+        ['Semestre', p.semestre && `${p.semestre}º`],
+        ['Edad', p.edad && `${p.edad} años`],
+        ['¿Trabaja?', p.trabaja == null ? null : (p.trabaja ? 'Sí' : 'No')],
+      ].filter(([, v]) => v);
+      m.querySelector('.card').innerHTML = `
+        <div class="perfil-ver">
+          <div class="avatar grande" id="avatarVer"></div>
+          <div><h2 style="margin:0">${esc(u.nombre)}</h2>
+            <div class="muted correo">${esc(u.cedula || '')}${u.email ? ` · ${esc(u.email)}` : ''}</div></div>
+        </div>
+        ${p.sobreMi ? `<p class="sobre-mi">${esc(p.sobreMi)}</p>` : ''}
+        ${datos.length ? `<dl class="perfil-datos">${datos.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : ''}
+        ${!p.sobreMi && !datos.length ? '<p class="muted">Este estudiante todavía no ha llenado su perfil.</p>' : ''}
+        <div class="row" style="justify-content:flex-end"><button class="btn" data-cerrar>Cerrar</button></div>`;
+      if (p.tieneFoto) pintarAvatar(m.querySelector('#avatarVer'), u);
+      else m.querySelector('#avatarVer').textContent = iniciales(u.nombre);
+    } catch (err) { m.remove(); toast(err.message, true); }
+  }
+
   /** Pide la clave otra vez antes de borrar: una sesión olvidada abierta no basta para eliminar la cuenta. */
   function modalEliminar() {
     const m = document.createElement('div');
     m.className = 'modal';
     m.innerHTML = `<form class="card">
         <h2>¿Eliminar tu cuenta?</h2>
-        <p class="muted">Se borran tu cuenta, tu perfil y tu foto, y sales de todas tus secciones. <strong>No se puede deshacer.</strong></p>
+        <p class="muted">${textoEliminar(API.usuario.rol)} <strong>No se puede deshacer.</strong></p>
         <div class="field"><label for="claveEliminar">Escribe tu clave para confirmar</label>
           <input id="claveEliminar" type="password" autocomplete="current-password" required></div>
         <p class="error" id="errorEliminar"></p>
@@ -143,5 +178,5 @@ const Perfil = (() => {
     };
   }
 
-  return { vista, pintarAvatar };
+  return { vista, pintarAvatar, modalVer };
 })();

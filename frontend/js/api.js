@@ -42,9 +42,11 @@ const API = {
     }
     return data;
   },
-  /** La foto de perfil como URL local (blob:). Un <img> no puede mandar el token, por eso se pide con fetch. */
-  async foto() {
-    const res = await fetch('/api/auth/me/foto', { headers: { Authorization: `Bearer ${this.token}` } });
+  /** Foto de perfil (la propia, o la de un estudiante si soy su profesor) como URL local (blob:).
+   *  Un <img> no puede mandar el token, por eso se pide con fetch. */
+  async foto(usuarioId) {
+    const ruta = usuarioId ? `usuarios/${usuarioId}/foto` : 'me/foto';
+    const res = await fetch(`/api/auth/${ruta}`, { headers: { Authorization: `Bearer ${this.token}` } });
     return res.ok ? URL.createObjectURL(await res.blob()) : null;
   },
   get(r) { return this.pedir('GET', r); },

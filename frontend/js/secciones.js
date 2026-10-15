@@ -47,6 +47,7 @@ const Secciones = (() => {
         <div class="lista-asistencia">${lista.map((u) => `
           <div class="asistente" style="cursor:default">
             <span class="grow"><strong>${esc(u.nombre)}</strong><br><span class="muted">${esc(u.cedula || '')}${u.email ? ` · ${esc(u.email)}` : ''}</span></span>
+            <button class="btn small" data-perfil="${u.id}">Ver perfil</button>
             <button class="btn small danger" data-quitar="${u.id}">Dar de baja</button></div>`).join('')
           || '<p class="muted" style="padding:1rem">Todavía no hay estudiantes en esta sección.</p>'}</div>
         <div class="row" style="justify-content:flex-end;margin-top:1rem"><button class="btn" data-cerrar>Cerrar</button></div>
@@ -54,6 +55,8 @@ const Secciones = (() => {
     document.body.appendChild(m);
     m.querySelector('[data-cerrar]').onclick = () => m.remove();
     m.onclick = async (e) => {
+      const verPerfil = e.target.closest('[data-perfil]');
+      if (verPerfil) { Perfil.modalVer(lista.find((u) => String(u.id) === verPerfil.dataset.perfil)); return; }
       const b = e.target.closest('[data-quitar]');
       if (!b || !confirm('¿Dar de baja a este estudiante? Perderá el acceso a las clases de la materia.')) return;
       try {
