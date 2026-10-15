@@ -213,6 +213,7 @@ public class ClaseController {
           "profesorId", Long.valueOf(u.getSubject()),
           "titulo", c.getTitulo(),
           "descripcion", Optional.ofNullable(c.getDescripcion()).orElse(""),
+          "materia", acceso.materiaParaIa(c),  // la IA explica segun la materia de este tema
           "nombreArchivo", nombre,
           "tipo", ext,
           "base64", Base64.getEncoder().encodeToString(Files.readAllBytes(destino))));

@@ -62,6 +62,21 @@ public class Acceso {
     return "PUBLICADA".equals(c.getEstado()) && permitidos(c).contains(estudianteId);
   }
 
+  /**
+   * La materia del tema, para que la IA sepa de que trata el curso (cualquier profesor, cualquier materia).
+   * Vacio si el tema todavia no tiene materia: Node usa entonces un contexto general.
+   */
+  public Map<String, String> materiaParaIa(Clase c) {
+    if (c.getMateriaId() == null) return Map.of();
+    return materias.findById(c.getMateriaId()).map(m -> {
+      Map<String, String> datos = new HashMap<>();   // HashMap: codigo y descripcion pueden ser null
+      datos.put("nombre", m.getNombre());
+      datos.put("codigo", m.getCodigo());
+      datos.put("descripcion", m.getDescripcion());
+      return datos;
+    }).orElse(Map.of());
+  }
+
   /** Java -> Node: quien tiene acceso; Node genera las preguntas de los nuevos y les avisa (Node -> Go). */
   public void sincronizar(Clase c) {
     Long profesorId = materias.findById(c.getMateriaId()).map(Materia::getProfesorId).orElse(null);
@@ -69,6 +84,7 @@ public class Acceso {
     cuerpo.put("claseId", c.getId());
     cuerpo.put("profesorId", profesorId);
     cuerpo.put("titulo", c.getTitulo());
+    cuerpo.put("materia", materiaParaIa(c));         // por si el tema cambio de materia despues de subirlo
     cuerpo.put("privada", c.isPrivada());
     cuerpo.put("permitidos", permitidos(c));
     cuerpo.put("preguntasPorEstudiante", c.getPreguntasPorEstudiante());
