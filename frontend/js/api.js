@@ -17,6 +17,10 @@ const API = {
     const opciones = { method: metodo, headers: {} };
     if (this.token) opciones.headers.Authorization = `Bearer ${this.token}`;
     if (cuerpo instanceof FormData) opciones.body = cuerpo;
+    else if (cuerpo instanceof Blob) { // una imagen va tal cual (ej. la foto de perfil)
+      opciones.headers['Content-Type'] = cuerpo.type;
+      opciones.body = cuerpo;
+    }
     else if (cuerpo !== undefined) {
       opciones.headers['Content-Type'] = 'application/json';
       opciones.body = JSON.stringify(cuerpo);
@@ -37,6 +41,11 @@ const API = {
       throw error;
     }
     return data;
+  },
+  /** La foto de perfil como URL local (blob:). Un <img> no puede mandar el token, por eso se pide con fetch. */
+  async foto() {
+    const res = await fetch('/api/auth/me/foto', { headers: { Authorization: `Bearer ${this.token}` } });
+    return res.ok ? URL.createObjectURL(await res.blob()) : null;
   },
   get(r) { return this.pedir('GET', r); },
   post(r, b) { return this.pedir('POST', r, b ?? {}); },

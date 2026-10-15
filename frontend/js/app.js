@@ -1,4 +1,4 @@
-// Aplicacion principal (SPA con rutas por hash): #/clases, #/clase/:id, #/secciones, #/solicitudes, #/inscribirme, #/admin
+// Aplicacion principal (SPA con rutas por hash): #/clases, #/clase/:id, #/secciones, #/solicitudes, #/inscribirme, #/admin, #/perfil
 if (!API.token) location.href = '/';
 
 const yo = API.usuario;
@@ -9,6 +9,7 @@ let temporizador = null; // para refrescar mientras la IA procesa
 
 document.getElementById('nombreUsuario').textContent = yo?.nombre || '';
 document.getElementById('rolUsuario').textContent = esAdmin ? 'Administrador' : esProfe ? 'Profesor' : 'Estudiante';
+Perfil.pintarAvatar(document.getElementById('avatarTopbar'));
 
 const ESTADOS = {
   SIN_MATERIAL: ['Sin presentacion', ''],
@@ -38,6 +39,7 @@ async function router() {
   try {
     const m = ruta.match(/^\/clase\/(\d+)(?:\/(\w+))?/);
     if (m) await vistaClase(Number(m[1]), m[2]);
+    else if (ruta.startsWith('/perfil')) await Perfil.vista(vista);
     else if (esAdmin) await Admin.vista(vista);
     else if (ruta.startsWith('/secciones') && esProfe) await Secciones.vista(vista);
     else if (ruta.startsWith('/solicitudes') && esProfe) await Solicitudes.vistaProfesor(vista);

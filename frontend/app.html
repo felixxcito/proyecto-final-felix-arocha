@@ -6,7 +6,7 @@
   <title>Aula Virtual LPR</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/estilos.css?v=6">
+  <link rel="stylesheet" href="/css/estilos.css?v=7">
 </head>
 <body>
   <header class="topbar">
@@ -21,10 +21,13 @@
           </button>
           <div class="panel-notif hidden" id="panelNotif"></div>
         </div>
-        <div class="info">
-          <div class="nombre" id="nombreUsuario"></div>
-          <div class="rol" id="rolUsuario"></div>
-        </div>
+        <a class="perfil-link" href="#/perfil" title="Mi perfil">
+          <span class="avatar" id="avatarTopbar"></span>
+          <div class="info">
+            <div class="nombre" id="nombreUsuario"></div>
+            <div class="rol" id="rolUsuario"></div>
+          </div>
+        </a>
         <button class="btn small" onclick="API.salir()">Salir</button>
       </div>
     </div>
@@ -32,11 +35,12 @@
 
   <main id="vista"></main>
 
-  <script src="/js/api.js?v=6"></script>
-  <script src="/js/visor.js?v=6"></script>
-  <script src="/js/secciones.js?v=6"></script>
-  <script src="/js/admin.js?v=6"></script>
-  <script src="/js/solicitudes.js?v=6"></script>
-  <script src="/js/app.js?v=6"></script>
+  <script src="/js/api.js?v=7"></script>
+  <script src="/js/visor.js?v=7"></script>
+  <script src="/js/secciones.js?v=7"></script>
+  <script src="/js/admin.js?v=7"></script>
+  <script src="/js/solicitudes.js?v=7"></script>
+  <script src="/js/perfil.js?v=7"></script>
+  <script src="/js/app.js?v=7"></script>
 </body>
 </html>
