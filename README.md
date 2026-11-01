@@ -1,5 +1,20 @@
 # Aula Virtual LPR — Proyecto Final LPR07304
 
+<!-- teaser:start -->
+<p align="center">
+<img src="docs/screenshots/01-chat-ia.jpg" width="32%" alt="Visor de clase con la explicación de la IA y chat para resolver dudas por diapositiva"> <img src="docs/screenshots/02-visor-diapositivas.jpg" width="32%" alt="Presentación del profesor explicada diapositiva por diapositiva por la IA"> <img src="docs/screenshots/03-preguntas-personalizadas.jpg" width="32%" alt="Preguntas distintas generadas para cada estudiante">
+</p>
+
+<details><summary>Más capturas</summary>
+
+<p align="center">
+<img src="docs/screenshots/04-notificaciones.jpg" width="48%" alt="Notificaciones en la web cuando se aprueba una inscripción o hay una nueva clase" title="Notificaciones en la web cuando se aprueba una inscripción o hay una nueva clase"> <img src="docs/screenshots/05-servicios-en-vivo.jpg" width="48%" alt="Estado en vivo de los cuatro microservicios (Python, Node, Java y Go) tras el gateway" title="Estado en vivo de los cuatro microservicios (Python, Node, Java y Go) tras el gateway"> <img src="docs/screenshots/06-login.jpg" width="48%" alt="Pantalla de ingreso y registro del Aula Virtual" title="Pantalla de ingreso y registro del Aula Virtual">
+</p>
+
+</details>
+<!-- teaser:end -->
+
+
 **Estudiante:** Félix Arocha · **Profesora:** Ing. María Valentina García · Universidad José Antonio Páez · Octubre 2026
 
 Plataforma web para la materia *Lenguajes de Programación* construida con **4 microservicios** (Python, Node.js, Java y Go), **PostgreSQL**, **MongoDB**, **Docker Compose** y **Nginx como API Gateway**.
